@@ -1,0 +1,17 @@
+{
+  "name": "guaro-frontend",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:user": "pnpm --filter @guaro/user dev",
+    "dev:bpo": "pnpm --filter @guaro/bpo dev",
+    "dev:admin": "pnpm --filter @guaro/admin dev"
+  },
+  "devDependencies": {
+    "turbo": "^2.3.3",
+    "typescript": "^5.7.2"
+  }
+}
