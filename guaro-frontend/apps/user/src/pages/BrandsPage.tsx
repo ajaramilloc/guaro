@@ -1,7 +1,8 @@
 import { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { mockBrands } from "@guaro/mock-data";
+import { mockBrands, mockUsers } from "@guaro/mock-data";
 import { Badge } from "@/components/ui/Badge";
+import { Avatar } from "@/components/ui/Avatar";
 import {
   getCountryFlag,
   PICKING_MODE_LABELS,
@@ -12,7 +13,6 @@ import { Download, ChevronRight, Search } from "lucide-react";
 import type {
   Brand,
   KaType,
-  BrandStatus,
   PickingMode,
   PaymentMode,
   MenuMethod,
@@ -20,7 +20,6 @@ import type {
 
 const COUNTRIES = ["MX", "CO", "CR", "BR"];
 const KA_TYPES: KaType[] = ["KA", "CKA", "SME"];
-const STATUSES: BrandStatus[] = ["ACTIVE", "INACTIVE", "PENDING"];
 const PICKING_MODES: PickingMode[] = [
   "TWO_IN_ONE",
   "BAPP_PICKING",
@@ -33,12 +32,15 @@ const PAYMENT_MODES: PaymentMode[] = [
 ];
 const MENU_METHODS: MenuMethod[] = ["API", "SFTP", "BAPP"];
 
+// BPOs disponibles para filtrar
+const bpoUsers = mockUsers.filter((u) => u.role === "BPO");
+
 export function BrandsPage() {
   const navigate = useNavigate();
   const [search, setSearch] = useState("");
   const [country, setCountry] = useState("");
   const [kaType, setKaType] = useState("");
-  const [status, setStatus] = useState("");
+  const [bpoFilter, setBpoFilter] = useState("");
   const [pickingMode, setPickingMode] = useState("");
   const [paymentMode, setPaymentMode] = useState("");
   const [menuMethod, setMenuMethod] = useState("");
@@ -60,19 +62,27 @@ export function BrandsPage() {
         return false;
       if (country && b.country !== country) return false;
       if (kaType && b.kaType !== kaType) return false;
-      if (status && b.status !== status) return false;
+      if (bpoFilter && b.assignedOpId !== bpoFilter) return false;
       if (pickingMode && b.pickingMode !== pickingMode) return false;
       if (paymentMode && b.paymentMode !== paymentMode) return false;
       if (menuMethod && b.menuMethod !== menuMethod) return false;
       return true;
     });
-  }, [search, country, kaType, status, pickingMode, paymentMode, menuMethod]);
+  }, [
+    search,
+    country,
+    kaType,
+    bpoFilter,
+    pickingMode,
+    paymentMode,
+    menuMethod,
+  ]);
 
   const clearFilters = () => {
     setSearch("");
     setCountry("");
     setKaType("");
-    setStatus("");
+    setBpoFilter("");
     setPickingMode("");
     setPaymentMode("");
     setMenuMethod("");
@@ -82,7 +92,7 @@ export function BrandsPage() {
     search ||
     country ||
     kaType ||
-    status ||
+    bpoFilter ||
     pickingMode ||
     paymentMode ||
     menuMethod;
@@ -147,20 +157,24 @@ export function BrandsPage() {
           ))}
         </select>
         <select
-          value={status}
-          onChange={(e) => setStatus(e.target.value)}
-          className="select w-28"
+          value={bpoFilter}
+          onChange={(e) => setBpoFilter(e.target.value)}
+          className="select w-36"
         >
-          <option value="">All statuses</option>
-          {STATUSES.map((s) => (
-            <option key={s} value={s}>
-              {s}
+          <option value="">All BPOs</option>
+          {bpoUsers.map((u) => (
+            <option key={u.bpoProfile?.id} value={u.bpoProfile?.id}>
+              {u.name}
             </option>
           ))}
         </select>
         <button
           onClick={() => setShowExtraFilters((v) => !v)}
-          className={`btn btn-sm ${showExtraFilters || hasExtraFilters ? "btn-primary" : "btn-secondary"}`}
+          className={`btn btn-sm ${
+            showExtraFilters || hasExtraFilters
+              ? "btn-primary"
+              : "btn-secondary"
+          }`}
         >
           {hasExtraFilters ? "● " : ""}Filters+
         </button>
@@ -181,7 +195,10 @@ export function BrandsPage() {
 
       {/* Filters row 2 — extra */}
       {showExtraFilters && (
-        <div className="flex items-center gap-2 mb-3 flex-wrap p-3 bg-surface-secondary rounded-lg border border-border">
+        <div
+          className="flex items-center gap-2 mb-3 flex-wrap p-3
+                        bg-surface-secondary rounded-lg border border-border"
+        >
           <span className="text-xs text-text-tertiary font-medium">
             Config filters:
           </span>
@@ -229,15 +246,15 @@ export function BrandsPage() {
         <table className="table-base">
           <thead>
             <tr>
-              <th className="w-[18%]">Brand</th>
-              <th className="w-[14%]">Merchant</th>
+              <th className="w-[16%]">Brand</th>
+              <th className="w-[12%]">Merchant</th>
               <th className="w-[7%]">Country</th>
               <th className="w-[7%]">KA type</th>
-              <th className="w-[14%]">Application</th>
-              <th className="w-[10%]">Picking mode</th>
-              <th className="w-[10%]">Payment mode</th>
-              <th className="w-[8%]">Menu</th>
-              <th className="w-[7%]">Status</th>
+              <th className="w-[13%]">Application</th>
+              <th className="w-[10%]">Picking</th>
+              <th className="w-[10%]">Payment</th>
+              <th className="w-[7%]">Menu</th>
+              <th className="w-[12%]">BPO (OP)</th>
               <th className="w-[4%]"></th>
             </tr>
           </thead>
@@ -268,6 +285,7 @@ export function BrandsPage() {
 
 function BrandRow({ brand, onClick }: { brand: Brand; onClick: () => void }) {
   const primaryApp = brand.applications?.find((a) => a.isPrimary)?.application;
+  const opUser = mockUsers.find((u) => u.bpoProfile?.id === brand.assignedOpId);
 
   return (
     <tr onClick={onClick}>
@@ -277,20 +295,17 @@ function BrandRow({ brand, onClick }: { brand: Brand; onClick: () => void }) {
             <span className="text-text-tertiary text-xs">↳</span>
           )}
           <span
-            className="font-medium text-text-primary truncate max-w-[130px]"
+            className="font-medium text-text-primary truncate max-w-[110px]"
             title={brand.name}
           >
             {brand.name}
           </span>
         </div>
       </td>
-      <td
-        className="text-text-secondary truncate max-w-[100px]"
-        title={brand.merchant?.name}
-      >
+      <td className="text-text-secondary text-xs truncate max-w-[90px]">
         {brand.merchant?.name}
       </td>
-      <td className="text-text-secondary">
+      <td className="text-text-secondary text-xs">
         {getCountryFlag(brand.country)} {brand.country}
       </td>
       <td>
@@ -298,7 +313,7 @@ function BrandRow({ brand, onClick }: { brand: Brand; onClick: () => void }) {
       </td>
       <td>
         <span
-          className="text-text-tertiary text-xs font-mono truncate block max-w-[110px]"
+          className="text-text-tertiary text-xs font-mono truncate block max-w-[100px]"
           title={primaryApp?.appName}
         >
           {primaryApp?.appName ?? "—"}
@@ -314,7 +329,16 @@ function BrandRow({ brand, onClick }: { brand: Brand; onClick: () => void }) {
         {brand.menuMethod ? MENU_METHOD_LABELS[brand.menuMethod] : "—"}
       </td>
       <td>
-        <Badge status={brand.status} />
+        {opUser ? (
+          <div className="flex items-center gap-1.5">
+            <Avatar name={opUser.name} size="xs" />
+            <span className="text-xs text-text-secondary truncate max-w-[70px]">
+              {opUser.name.split(" ")[0]}
+            </span>
+          </div>
+        ) : (
+          <span className="text-text-tertiary text-xs">—</span>
+        )}
       </td>
       <td>
         <ChevronRight size={14} className="text-text-tertiary" />
