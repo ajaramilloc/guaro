@@ -1,5 +1,5 @@
 import { NavLink } from "react-router-dom";
-import { LayoutList, History, LayoutGrid, Bell } from "lucide-react";
+import { LayoutList, History, LayoutGrid, Bell, Building2 } from "lucide-react";
 import { useAuth } from "@/store/auth";
 import { Avatar } from "@/components/ui/Avatar";
 import { DevSwitcher } from "@/components/ui/DevSwitcher";
@@ -9,6 +9,7 @@ const navItems = [
   { to: "/", icon: LayoutList, label: "My tasks", end: true },
   { to: "/history", icon: History, label: "History", end: true },
   { to: "/brands", icon: LayoutGrid, label: "Brands", end: true },
+  { to: "/merchants", icon: Building2, label: "Merchants", end: true },
 ];
 
 export function Layout({ children }: { children: React.ReactNode }) {

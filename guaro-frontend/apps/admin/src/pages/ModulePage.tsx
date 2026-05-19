@@ -8,11 +8,218 @@ import {
 } from "@guaro/mock-data";
 import { Badge } from "@/components/ui/Badge";
 import { Avatar } from "@/components/ui/Avatar";
-import { TEAM_LABELS } from "@guaro/utils";
-import { Plus, Trash2, GripVertical, X } from "lucide-react";
+import { TEAM_LABELS, ROLE_LABELS, getCountryFlag } from "@guaro/utils";
+import { Plus, Trash2, GripVertical, X, Search } from "lucide-react";
 import type { TaskType } from "@guaro/types";
 
 type Tab = "general" | "form" | "workflow" | "assignment";
+
+// ─────────────────────────────────────────
+// USER POOL SELECTOR
+// ─────────────────────────────────────────
+
+function UserPoolSelector({
+  pool,
+  onToggle,
+  users,
+}: {
+  pool: string[];
+  onToggle: (userId: string) => void;
+  users: typeof mockUsers;
+}) {
+  const [search, setSearch] = useState("");
+
+  const filtered = users.filter(
+    (u) =>
+      !search ||
+      u.name.toLowerCase().includes(search.toLowerCase()) ||
+      ROLE_LABELS[u.role].toLowerCase().includes(search.toLowerCase()) ||
+      TEAM_LABELS[u.team].toLowerCase().includes(search.toLowerCase()),
+  );
+
+  return (
+    <div className="border border-border rounded-md overflow-hidden">
+      <div className="p-1.5 border-b border-border">
+        <div className="relative">
+          <Search
+            size={11}
+            className="absolute left-2 top-1/2 -translate-y-1/2 text-text-tertiary"
+          />
+          <input
+            className="input input-sm pl-6 w-full text-[11px]"
+            placeholder="Search by name, role or team..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+      </div>
+      <div className="max-h-36 overflow-y-auto divide-y divide-border">
+        {filtered.length === 0 && (
+          <p className="text-center text-text-tertiary text-[10px] py-3">
+            No users found
+          </p>
+        )}
+        {filtered.map((u) => (
+          <label
+            key={u.id}
+            className="flex items-center gap-2 px-2.5 py-1.5 cursor-pointer hover:bg-surface-secondary"
+          >
+            <input
+              type="checkbox"
+              checked={pool.includes(u.id)}
+              onChange={() => onToggle(u.id)}
+            />
+            <div className="flex-1 min-w-0">
+              <p className="text-xs text-text-primary truncate">{u.name}</p>
+              <p className="text-[10px] text-text-tertiary">
+                {ROLE_LABELS[u.role]} · {TEAM_LABELS[u.team]}
+              </p>
+            </div>
+            {pool.includes(u.id) && (
+              <span className="w-1.5 h-1.5 rounded-full bg-success-text flex-shrink-0" />
+            )}
+          </label>
+        ))}
+      </div>
+      {pool.length > 0 && (
+        <div className="px-2.5 py-1.5 border-t border-border bg-surface-secondary">
+          <p className="text-[10px] text-text-secondary">
+            {pool.length} person{pool.length !== 1 ? "s" : ""} selected
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────
+// OPTION ROW
+// ─────────────────────────────────────────
+
+function OptionRow({
+  value,
+  onChange,
+  onRemove,
+}: {
+  value: string;
+  onChange: (val: string) => void;
+  onRemove: () => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value);
+
+  function save() {
+    if (draft.trim()) onChange(draft.trim());
+    setEditing(false);
+  }
+
+  return (
+    <div className="flex items-center gap-1.5">
+      {editing ? (
+        <>
+          <input
+            className="input flex-1 input-sm"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") save();
+              if (e.key === "Escape") {
+                setDraft(value);
+                setEditing(false);
+              }
+            }}
+            autoFocus
+          />
+          <button
+            className="btn btn-primary btn-sm flex-shrink-0"
+            onClick={save}
+          >
+            Save
+          </button>
+          <button
+            className="btn btn-ghost btn-sm flex-shrink-0"
+            onClick={() => {
+              setDraft(value);
+              setEditing(false);
+            }}
+          >
+            <X size={11} />
+          </button>
+        </>
+      ) : (
+        <>
+          <div
+            className="flex-1 text-xs bg-white border border-border rounded px-2.5 py-1.5
+                        cursor-pointer hover:border-accent hover:bg-surface-secondary transition-colors"
+            onClick={() => setEditing(true)}
+          >
+            {value}
+          </div>
+          <button
+            className="btn btn-ghost btn-sm p-1 text-text-tertiary hover:text-accent"
+            onClick={() => setEditing(true)}
+          >
+            <svg
+              width="11"
+              height="11"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
+              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+            </svg>
+          </button>
+          <button
+            className="btn btn-ghost btn-sm p-1 text-text-tertiary hover:text-danger-text"
+            onClick={onRemove}
+          >
+            <X size={11} />
+          </button>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────
+// ADD OPTION ROW
+// ─────────────────────────────────────────
+
+function AddOptionRow({ onAdd }: { onAdd: (opt: string) => void }) {
+  const [value, setValue] = useState("");
+
+  function submit() {
+    if (!value.trim()) return;
+    onAdd(value.trim());
+    setValue("");
+  }
+
+  return (
+    <div className="flex gap-1.5">
+      <input
+        className="input flex-1 input-sm"
+        placeholder="Add option..."
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        onKeyDown={(e) => e.key === "Enter" && submit()}
+      />
+      <button
+        className="btn btn-secondary btn-sm flex-shrink-0"
+        disabled={!value.trim()}
+        onClick={submit}
+      >
+        <Plus size={11} />
+        Add
+      </button>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────
+// MODULE PAGE
+// ─────────────────────────────────────────
 
 export function ModulePage() {
   const { moduleId } = useParams<{ moduleId: string }>();
@@ -534,7 +741,6 @@ function FormTab({ taskType }: { taskType: TaskType }) {
                 : "border-border bg-white hover:bg-surface-secondary"
             }`}
           >
-            {/* Field row */}
             <div className="flex items-center gap-2.5 px-3 py-2.5">
               <GripVertical
                 size={14}
@@ -545,10 +751,7 @@ function FormTab({ taskType }: { taskType: TaskType }) {
                   {f.name}
                 </span>
                 {f.type === "brand_select" && (
-                  <span
-                    className="ml-1.5 text-[10px] bg-purple-bg text-purple-text
-                                   rounded px-1.5 py-0.5"
-                  >
+                  <span className="ml-1.5 text-[10px] bg-purple-bg text-purple-text rounded px-1.5 py-0.5">
                     auto-added
                   </span>
                 )}
@@ -560,24 +763,19 @@ function FormTab({ taskType }: { taskType: TaskType }) {
                 {f.type}
               </span>
               <button
-                className={`text-[10px] flex-shrink-0 px-1.5 py-0.5 rounded border
-                            transition-colors ${
-                              f.required
-                                ? "text-danger-text border-danger-border bg-danger-bg hover:opacity-70"
-                                : "text-text-tertiary border-border hover:bg-surface-secondary"
-                            }`}
+                className={`text-[10px] flex-shrink-0 px-1.5 py-0.5 rounded border transition-colors ${
+                  f.required
+                    ? "text-danger-text border-danger-border bg-danger-bg hover:opacity-70"
+                    : "text-text-tertiary border-border hover:bg-surface-secondary"
+                }`}
                 onClick={() => updateField(f.id, "required", !f.required)}
-                title="Click to toggle required/optional"
               >
                 {f.required ? "required" : "optional"}
               </button>
               <div className="flex gap-1 flex-shrink-0">
                 <button
-                  className={`btn btn-ghost btn-sm p-1 ${
-                    editingId === f.id ? "text-accent" : "text-text-tertiary"
-                  }`}
+                  className={`btn btn-ghost btn-sm p-1 ${editingId === f.id ? "text-accent" : "text-text-tertiary"}`}
                   onClick={() => setEditingId(editingId === f.id ? null : f.id)}
-                  title="Edit field"
                 >
                   <svg
                     width="13"
@@ -594,19 +792,14 @@ function FormTab({ taskType }: { taskType: TaskType }) {
                 <button
                   className="btn btn-ghost btn-sm p-1 text-text-tertiary hover:text-danger-text"
                   onClick={() => removeField(f.id)}
-                  title="Remove field"
                 >
                   <Trash2 size={13} />
                 </button>
               </div>
             </div>
 
-            {/* Edit panel */}
             {editingId === f.id && (
-              <div
-                className="border-t border-border px-3 pb-3 pt-2.5 space-y-3
-                              bg-surface-secondary/30"
-              >
+              <div className="border-t border-border px-3 pb-3 pt-2.5 space-y-3 bg-surface-secondary/30">
                 <div className="grid grid-cols-2 gap-2">
                   <div>
                     <label className="text-[10px] font-medium text-text-secondary block mb-1">
@@ -643,7 +836,6 @@ function FormTab({ taskType }: { taskType: TaskType }) {
                     </select>
                   </div>
                 </div>
-
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input
                     type="checkbox"
@@ -656,7 +848,6 @@ function FormTab({ taskType }: { taskType: TaskType }) {
                     Required field
                   </span>
                 </label>
-
                 {f.type === "select" && (
                   <div>
                     <label className="text-[10px] font-medium text-text-secondary block mb-1.5">
@@ -667,7 +858,7 @@ function FormTab({ taskType }: { taskType: TaskType }) {
                         <OptionRow
                           key={idx}
                           value={opt}
-                          onChange={(val) => {
+                          onChange={(val) =>
                             setFields((fs) =>
                               fs.map((x) =>
                                 x.id === f.id
@@ -679,8 +870,8 @@ function FormTab({ taskType }: { taskType: TaskType }) {
                                     }
                                   : x,
                               ),
-                            );
-                          }}
+                            )
+                          }
                           onRemove={() => removeOption(f.id, idx)}
                         />
                       ))}
@@ -765,138 +956,24 @@ function FormTab({ taskType }: { taskType: TaskType }) {
 }
 
 // ─────────────────────────────────────────
-// OPTION ROW
-// ─────────────────────────────────────────
-
-function OptionRow({
-  value,
-  onChange,
-  onRemove,
-}: {
-  value: string;
-  onChange: (val: string) => void;
-  onRemove: () => void;
-}) {
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(value);
-
-  function save() {
-    if (draft.trim()) onChange(draft.trim());
-    setEditing(false);
-  }
-
-  return (
-    <div className="flex items-center gap-1.5">
-      {editing ? (
-        <>
-          <input
-            className="input flex-1 input-sm"
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") save();
-              if (e.key === "Escape") {
-                setDraft(value);
-                setEditing(false);
-              }
-            }}
-            autoFocus
-          />
-          <button
-            className="btn btn-primary btn-sm flex-shrink-0"
-            onClick={save}
-          >
-            Save
-          </button>
-          <button
-            className="btn btn-ghost btn-sm flex-shrink-0"
-            onClick={() => {
-              setDraft(value);
-              setEditing(false);
-            }}
-          >
-            <X size={11} />
-          </button>
-        </>
-      ) : (
-        <>
-          <div
-            className="flex-1 text-xs bg-white border border-border rounded px-2.5 py-1.5
-                        cursor-pointer hover:border-accent hover:bg-surface-secondary transition-colors"
-            onClick={() => setEditing(true)}
-          >
-            {value}
-          </div>
-          <button
-            className="btn btn-ghost btn-sm p-1 text-text-tertiary hover:text-accent"
-            onClick={() => setEditing(true)}
-            title="Edit"
-          >
-            <svg
-              width="11"
-              height="11"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-            >
-              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-            </svg>
-          </button>
-          <button
-            className="btn btn-ghost btn-sm p-1 text-text-tertiary hover:text-danger-text"
-            onClick={onRemove}
-            title="Remove"
-          >
-            <X size={11} />
-          </button>
-        </>
-      )}
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────
-// ADD OPTION ROW
-// ─────────────────────────────────────────
-
-function AddOptionRow({ onAdd }: { onAdd: (opt: string) => void }) {
-  const [value, setValue] = useState("");
-
-  function submit() {
-    if (!value.trim()) return;
-    onAdd(value.trim());
-    setValue("");
-  }
-
-  return (
-    <div className="flex gap-1.5">
-      <input
-        className="input flex-1 input-sm"
-        placeholder="Add option..."
-        value={value}
-        onChange={(e) => setValue(e.target.value)}
-        onKeyDown={(e) => e.key === "Enter" && submit()}
-      />
-      <button
-        className="btn btn-secondary btn-sm flex-shrink-0"
-        disabled={!value.trim()}
-        onClick={submit}
-      >
-        <Plus size={11} />
-        Add
-      </button>
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────
 // WORKFLOW TAB
 // ─────────────────────────────────────────
 
 function WorkflowTab({ taskType }: { taskType: TaskType }) {
-  const defaultNodes =
+  type NodeAssignment = {
+    strategy: string;
+    pool: string[];
+    [key: string]: unknown;
+  } | null;
+  type WorkflowNode = {
+    id: string;
+    label: string;
+    type: string;
+    sub: string;
+    assignment: NodeAssignment;
+  };
+
+  const defaultNodes: WorkflowNode[] =
     taskType.executionMode === "AUTOMATED"
       ? [
           {
@@ -904,24 +981,28 @@ function WorkflowTab({ taskType }: { taskType: TaskType }) {
             label: "Read file",
             type: "auto",
             sub: "Downloads & parses input",
+            assignment: null,
           },
           {
             id: "w2",
             label: "Validate rows",
             type: "auto",
             sub: "Schema + data check",
+            assignment: null,
           },
           {
             id: "w3",
             label: "Upload via API",
             type: "auto",
             sub: "Calls platform API",
+            assignment: null,
           },
           {
             id: "w4",
             label: "Notify result",
             type: "auto",
             sub: "Sends webhook",
+            assignment: null,
           },
         ]
       : taskType.executionMode === "HYBRID"
@@ -931,30 +1012,35 @@ function WorkflowTab({ taskType }: { taskType: TaskType }) {
               label: "Create in Guaro",
               type: "auto",
               sub: "Registers brand",
+              assignment: null,
             },
             {
               id: "w2",
               label: "BPO creates externally",
               type: "manual",
               sub: "Platform action",
+              assignment: { strategy: "WEIGHT_BALANCED", pool: [] },
             },
             {
               id: "w3",
               label: "BPO fills external ID",
               type: "manual",
               sub: "Registers ID & app",
+              assignment: { strategy: "WEIGHT_BALANCED", pool: [] },
             },
             {
               id: "w4",
               label: "Assign OP",
               type: "auto",
               sub: "Round robin / fixed",
+              assignment: null,
             },
             {
               id: "w5",
               label: "Notify result",
               type: "auto",
               sub: "Sends webhook",
+              assignment: null,
             },
           ]
         : [
@@ -963,31 +1049,87 @@ function WorkflowTab({ taskType }: { taskType: TaskType }) {
               label: "Assigned to BPO",
               type: "auto",
               sub: "Weight balanced",
+              assignment: null,
             },
             {
               id: "w2",
               label: "BPO executes",
               type: "manual",
               sub: "Manual action",
+              assignment: { strategy: "WEIGHT_BALANCED", pool: [] },
             },
             {
               id: "w3",
               label: "Notify result",
               type: "auto",
               sub: "Sends webhook",
+              assignment: null,
             },
           ];
 
-  const [nodes, setNodes] = useState(defaultNodes);
+  const [nodes, setNodes] = useState<WorkflowNode[]>(defaultNodes);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
   const [newLabel, setNewLabel] = useState("");
   const [newType, setNewType] = useState<"auto" | "manual">("auto");
   const [newSub, setNewSub] = useState("");
 
-  function updateNode(id: string, field: string, value: string) {
+  const allUsers = mockUsers;
+
+  function updateNode(id: string, field: string, value: unknown) {
     setNodes((ns) =>
       ns.map((n) => (n.id === id ? { ...n, [field]: value } : n)),
+    );
+  }
+
+  function updateNodeType(id: string, type: string) {
+    setNodes((ns) =>
+      ns.map((n) =>
+        n.id === id
+          ? {
+              ...n,
+              type,
+              assignment:
+                type === "manual"
+                  ? { strategy: "WEIGHT_BALANCED", pool: [] }
+                  : null,
+            }
+          : n,
+      ),
+    );
+  }
+
+  function togglePoolUser(nodeId: string, userId: string) {
+    setNodes((ns) =>
+      ns.map((n) => {
+        if (n.id !== nodeId || !n.assignment) return n;
+        const pool = n.assignment.pool.includes(userId)
+          ? n.assignment.pool.filter((id) => id !== userId)
+          : [...n.assignment.pool, userId];
+        return { ...n, assignment: { ...n.assignment, pool } };
+      }),
+    );
+  }
+
+  function updateAssignmentStrategy(nodeId: string, strategy: string) {
+    setNodes((ns) =>
+      ns.map((n) => {
+        if (n.id !== nodeId || !n.assignment) return n;
+        return { ...n, assignment: { ...n.assignment, strategy } };
+      }),
+    );
+  }
+
+  function toggleSubPool(nodeId: string, poolKey: string, userId: string) {
+    setNodes((ns) =>
+      ns.map((n) => {
+        if (n.id !== nodeId || !n.assignment) return n;
+        const current = (n.assignment[poolKey] as string[]) ?? [];
+        const updated = current.includes(userId)
+          ? current.filter((id) => id !== userId)
+          : [...current, userId];
+        return { ...n, assignment: { ...n.assignment, [poolKey]: updated } };
+      }),
     );
   }
 
@@ -1005,6 +1147,10 @@ function WorkflowTab({ taskType }: { taskType: TaskType }) {
         label: newLabel,
         type: newType,
         sub: newSub,
+        assignment:
+          newType === "manual"
+            ? { strategy: "WEIGHT_BALANCED", pool: [] }
+            : null,
       },
     ]);
     setNewLabel("");
@@ -1012,47 +1158,74 @@ function WorkflowTab({ taskType }: { taskType: TaskType }) {
     setShowAdd(false);
   }
 
+  const strategyLabel = (s: string) => {
+    if (s === "WEIGHT_BALANCED") return "⚖ Weight balanced";
+    if (s === "FIXED") return "📌 Fixed";
+    if (s === "ROUND_ROBIN") return "🔄 Round robin";
+    if (s === "KA_TYPE_BASED") return "🏷 KA type based";
+    if (s === "COUNTRY_BASED") return "🌎 Country based";
+    return s;
+  };
+
   return (
     <div>
       <p className="text-xs text-text-secondary mb-4">
-        Steps executed when this task is triggered. Click a node to edit.
+        Steps executed when this task is triggered. Click a node to configure
+        it.
       </p>
       <div className="flex flex-col items-center gap-0 mb-4">
         {nodes.map((node, i) => (
           <div
             key={node.id}
-            className="flex flex-col items-center w-full max-w-xs"
+            className="flex flex-col items-center w-full max-w-sm"
           >
             {editingId === node.id ? (
-              <div className="w-full border border-accent rounded-md p-3 bg-white shadow-card">
-                <div className="space-y-2">
-                  <div>
-                    <label className="text-[10px] font-medium text-text-secondary block mb-1">
-                      Label
-                    </label>
-                    <input
-                      className="input w-full"
-                      value={node.label}
-                      onChange={(e) =>
-                        updateNode(node.id, "label", e.target.value)
-                      }
-                    />
+              <div className="w-full border border-accent rounded-md bg-white shadow-card overflow-hidden">
+                {/* Node header */}
+                <div
+                  className={`px-3 py-2 border-b ${
+                    node.type === "auto"
+                      ? "bg-purple-bg border-purple-border"
+                      : "bg-surface-secondary border-border"
+                  }`}
+                >
+                  <p className="text-xs font-medium text-text-primary">
+                    {node.label}
+                  </p>
+                </div>
+
+                <div className="p-3 space-y-3">
+                  {/* Label + type */}
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-[10px] font-medium text-text-secondary block mb-1">
+                        Label
+                      </label>
+                      <input
+                        className="input w-full"
+                        value={node.label}
+                        onChange={(e) =>
+                          updateNode(node.id, "label", e.target.value)
+                        }
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-medium text-text-secondary block mb-1">
+                        Type
+                      </label>
+                      <select
+                        className="select w-full"
+                        value={node.type}
+                        onChange={(e) =>
+                          updateNodeType(node.id, e.target.value)
+                        }
+                      >
+                        <option value="auto">Automated</option>
+                        <option value="manual">Manual</option>
+                      </select>
+                    </div>
                   </div>
-                  <div>
-                    <label className="text-[10px] font-medium text-text-secondary block mb-1">
-                      Type
-                    </label>
-                    <select
-                      className="select w-full"
-                      value={node.type}
-                      onChange={(e) =>
-                        updateNode(node.id, "type", e.target.value)
-                      }
-                    >
-                      <option value="auto">Automated</option>
-                      <option value="manual">Manual (BPO)</option>
-                    </select>
-                  </div>
+
                   <div>
                     <label className="text-[10px] font-medium text-text-secondary block mb-1">
                       Description
@@ -1065,7 +1238,158 @@ function WorkflowTab({ taskType }: { taskType: TaskType }) {
                       }
                     />
                   </div>
-                  <div className="flex gap-2 justify-between">
+
+                  {/* Assignment — manual nodes only */}
+                  {node.type === "manual" && node.assignment && (
+                    <div className="border border-border rounded-md overflow-hidden">
+                      <div className="px-3 py-2 bg-surface-secondary border-b border-border">
+                        <p className="text-[10px] font-medium text-text-secondary uppercase tracking-wide">
+                          Assignment for this step
+                        </p>
+                      </div>
+                      <div className="p-3 space-y-3">
+                        <div>
+                          <label className="text-[10px] font-medium text-text-secondary block mb-1">
+                            Strategy
+                          </label>
+                          <select
+                            className="select w-full"
+                            value={node.assignment.strategy}
+                            onChange={(e) =>
+                              updateAssignmentStrategy(node.id, e.target.value)
+                            }
+                          >
+                            <option value="WEIGHT_BALANCED">
+                              Weight balanced — least loaded
+                            </option>
+                            <option value="FIXED">
+                              Fixed — always same person(s)
+                            </option>
+                            <option value="ROUND_ROBIN">
+                              Round robin — rotate
+                            </option>
+                            <option value="KA_TYPE_BASED">
+                              KA type based — pool per KA type
+                            </option>
+                            <option value="COUNTRY_BASED">
+                              Country based — pool per country
+                            </option>
+                          </select>
+                        </div>
+
+                        {/* Single pool strategies */}
+                        {["WEIGHT_BALANCED", "FIXED", "ROUND_ROBIN"].includes(
+                          node.assignment.strategy,
+                        ) && (
+                          <div>
+                            <label className="text-[10px] font-medium text-text-secondary block mb-1">
+                              {node.assignment.strategy === "FIXED"
+                                ? "Fixed person(s)"
+                                : "Eligible pool"}{" "}
+                              <span className="text-text-tertiary font-normal">
+                                — any role
+                              </span>
+                            </label>
+                            <UserPoolSelector
+                              pool={node.assignment.pool}
+                              onToggle={(userId) =>
+                                togglePoolUser(node.id, userId)
+                              }
+                              users={allUsers}
+                            />
+                            {node.assignment.pool.length === 0 && (
+                              <p className="text-[10px] text-warning-text mt-1">
+                                Select at least one person
+                              </p>
+                            )}
+                          </div>
+                        )}
+
+                        {/* KA_TYPE_BASED — pool per KA type */}
+                        {node.assignment.strategy === "KA_TYPE_BASED" && (
+                          <div className="space-y-3">
+                            {(["KA", "CKA", "SME"] as const).map((kaType) => {
+                              const poolKey = `pool_${kaType}`;
+                              const pool =
+                                ((node.assignment as Record<string, unknown>)[
+                                  poolKey
+                                ] as string[]) ?? [];
+                              return (
+                                <div key={kaType}>
+                                  <label className="text-[10px] font-medium text-text-secondary block mb-1">
+                                    Pool for{" "}
+                                    <span
+                                      className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                                        kaType === "KA"
+                                          ? "bg-purple-bg text-purple-text"
+                                          : kaType === "CKA"
+                                            ? "bg-teal-bg text-teal-text"
+                                            : "bg-amber-bg text-amber-text"
+                                      }`}
+                                    >
+                                      {kaType}
+                                    </span>{" "}
+                                    brands
+                                  </label>
+                                  <UserPoolSelector
+                                    pool={pool}
+                                    onToggle={(userId) =>
+                                      toggleSubPool(node.id, poolKey, userId)
+                                    }
+                                    users={allUsers}
+                                  />
+                                  {pool.length === 0 && (
+                                    <p className="text-[10px] text-warning-text mt-1">
+                                      Select at least one person for {kaType}
+                                    </p>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+
+                        {/* COUNTRY_BASED — pool per country */}
+                        {node.assignment.strategy === "COUNTRY_BASED" && (
+                          <div className="space-y-3">
+                            {(["MX", "CO", "CR", "BR"] as const).map(
+                              (country) => {
+                                const poolKey = `pool_${country}`;
+                                const pool =
+                                  ((node.assignment as Record<string, unknown>)[
+                                    poolKey
+                                  ] as string[]) ?? [];
+                                return (
+                                  <div key={country}>
+                                    <label className="text-[10px] font-medium text-text-secondary block mb-1">
+                                      Pool for{" "}
+                                      <span className="font-medium text-text-primary">
+                                        {getCountryFlag(country)} {country}
+                                      </span>
+                                    </label>
+                                    <UserPoolSelector
+                                      pool={pool}
+                                      onToggle={(userId) =>
+                                        toggleSubPool(node.id, poolKey, userId)
+                                      }
+                                      users={allUsers}
+                                    />
+                                    {pool.length === 0 && (
+                                      <p className="text-[10px] text-warning-text mt-1">
+                                        Select at least one person for {country}
+                                      </p>
+                                    )}
+                                  </div>
+                                );
+                              },
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex gap-2 justify-between pt-1">
                     <button
                       className="btn btn-danger btn-sm"
                       onClick={() => removeNode(node.id)}
@@ -1085,7 +1409,7 @@ function WorkflowTab({ taskType }: { taskType: TaskType }) {
             ) : (
               <div
                 className={`px-4 py-2 rounded-md border text-xs text-center
-                            min-w-[180px] cursor-pointer transition-colors hover:opacity-80 ${
+                            min-w-[200px] cursor-pointer transition-colors hover:opacity-80 ${
                               node.type === "auto"
                                 ? "bg-purple-bg border-purple-border text-purple-text"
                                 : "bg-surface-secondary border-border text-text-secondary"
@@ -1094,6 +1418,16 @@ function WorkflowTab({ taskType }: { taskType: TaskType }) {
               >
                 <p className="font-medium">{node.label}</p>
                 <p className="text-[10px] mt-0.5 opacity-75">{node.sub}</p>
+                {node.type === "manual" && node.assignment && (
+                  <p className="text-[10px] mt-1 opacity-60">
+                    {strategyLabel(node.assignment.strategy)}
+                    {["WEIGHT_BALANCED", "FIXED", "ROUND_ROBIN"].includes(
+                      node.assignment.strategy,
+                    ) &&
+                      node.assignment.pool.length > 0 &&
+                      ` · ${node.assignment.pool.length}p`}
+                  </p>
+                )}
               </div>
             )}
             {i < nodes.length - 1 && <div className="w-px h-4 bg-border" />}
@@ -1101,31 +1435,36 @@ function WorkflowTab({ taskType }: { taskType: TaskType }) {
         ))}
       </div>
 
+      {/* Add node */}
       {showAdd ? (
-        <div className="border border-border rounded-md p-3 max-w-xs space-y-2 mb-2">
-          <div>
-            <label className="text-[10px] font-medium text-text-secondary block mb-1">
-              Label
-            </label>
-            <input
-              className="input w-full"
-              placeholder="e.g. Send notification"
-              value={newLabel}
-              onChange={(e) => setNewLabel(e.target.value)}
-            />
-          </div>
-          <div>
-            <label className="text-[10px] font-medium text-text-secondary block mb-1">
-              Type
-            </label>
-            <select
-              className="select w-full"
-              value={newType}
-              onChange={(e) => setNewType(e.target.value as "auto" | "manual")}
-            >
-              <option value="auto">Automated</option>
-              <option value="manual">Manual (BPO)</option>
-            </select>
+        <div className="border border-border rounded-md p-3 max-w-sm space-y-2 mb-2">
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="text-[10px] font-medium text-text-secondary block mb-1">
+                Label
+              </label>
+              <input
+                className="input w-full"
+                placeholder="e.g. Categorize products"
+                value={newLabel}
+                onChange={(e) => setNewLabel(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="text-[10px] font-medium text-text-secondary block mb-1">
+                Type
+              </label>
+              <select
+                className="select w-full"
+                value={newType}
+                onChange={(e) =>
+                  setNewType(e.target.value as "auto" | "manual")
+                }
+              >
+                <option value="auto">Automated</option>
+                <option value="manual">Manual</option>
+              </select>
+            </div>
           </div>
           <div>
             <label className="text-[10px] font-medium text-text-secondary block mb-1">
@@ -1164,14 +1503,16 @@ function WorkflowTab({ taskType }: { taskType: TaskType }) {
         </button>
       )}
 
-      <div className="mt-3 flex gap-3">
+      <div className="mt-3 flex gap-4">
         <div className="flex items-center gap-1.5">
           <div className="w-3 h-3 rounded-sm bg-purple-bg border border-purple-border" />
           <span className="text-[10px] text-text-secondary">Automated</span>
         </div>
         <div className="flex items-center gap-1.5">
           <div className="w-3 h-3 rounded-sm bg-surface-secondary border border-border" />
-          <span className="text-[10px] text-text-secondary">Manual (BPO)</span>
+          <span className="text-[10px] text-text-secondary">
+            Manual — click to configure
+          </span>
         </div>
       </div>
     </div>
@@ -1221,8 +1562,7 @@ function AssignmentTab({ taskType }: { taskType: TaskType }) {
         {bpoUsers.map((u) => (
           <label
             key={u.id}
-            className="flex items-center gap-2.5 px-3 py-2 cursor-pointer
-                       hover:bg-surface-secondary"
+            className="flex items-center gap-2.5 px-3 py-2 cursor-pointer hover:bg-surface-secondary"
           >
             <input
               type="checkbox"
@@ -1244,8 +1584,12 @@ function AssignmentTab({ taskType }: { taskType: TaskType }) {
     <div className="space-y-4 max-w-lg">
       <div>
         <label className="text-xs font-medium text-text-secondary block mb-1.5">
-          Assignment strategy
+          Default assignment strategy
         </label>
+        <p className="text-[11px] text-text-tertiary mb-2">
+          This applies to automated steps. Manual steps have their own
+          assignment configured in the Workflow tab.
+        </p>
         <select
           className="select w-full"
           value={strategy}
@@ -1267,7 +1611,7 @@ function AssignmentTab({ taskType }: { taskType: TaskType }) {
           <label className="text-xs font-medium text-text-secondary block mb-1.5">
             Eligible BPO pool{" "}
             <span className="text-text-tertiary font-normal">
-              — task goes to least loaded among these
+              — least loaded gets assigned
             </span>
           </label>
           <BpoPoolList selected={weightPool} onToggle={toggleWeight} />
@@ -1276,19 +1620,13 @@ function AssignmentTab({ taskType }: { taskType: TaskType }) {
               Select at least one BPO
             </p>
           )}
-          <p className="text-[11px] text-text-tertiary mt-1">
-            Among selected BPOs, the one with least active weight gets assigned.
-          </p>
         </div>
       )}
 
       {strategy === "FIXED_BPO" && (
         <div>
           <label className="text-xs font-medium text-text-secondary block mb-1.5">
-            Fixed BPO(s){" "}
-            <span className="text-text-tertiary font-normal">
-              — task always goes to these
-            </span>
+            Fixed BPO(s)
           </label>
           <BpoPoolList selected={fixedPool} onToggle={toggleFixed} />
           {fixedPool.length === 0 && (
@@ -1326,11 +1664,6 @@ function AssignmentTab({ taskType }: { taskType: TaskType }) {
               </span>
             </label>
             <BpoPoolList selected={fixedPool} onToggle={toggleFixed} />
-            {fixedPool.length === 0 && (
-              <p className="text-[11px] text-warning-text mt-1">
-                Select at least one BPO for KA brands
-              </p>
-            )}
           </div>
           <div>
             <label className="text-xs font-medium text-text-secondary block mb-1.5">
@@ -1340,11 +1673,6 @@ function AssignmentTab({ taskType }: { taskType: TaskType }) {
               </span>
             </label>
             <BpoPoolList selected={roundPool} onToggle={toggleRound} />
-            {roundPool.length === 0 && (
-              <p className="text-[11px] text-warning-text mt-1">
-                Select at least one BPO for CKA/SME brands
-              </p>
-            )}
           </div>
         </div>
       )}

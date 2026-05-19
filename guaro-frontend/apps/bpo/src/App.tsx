@@ -7,6 +7,7 @@ import { TaskDetailPage } from "@/pages/TaskDetailPage";
 import { HistoryPage } from "@/pages/HistoryPage";
 import { BrandsPage } from "@/pages/BrandsPage";
 import { BrandTrackerPage } from "@/pages/BrandTrackerPage";
+import { MerchantsPage } from "@/pages/MerchantsPage";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -26,6 +27,7 @@ export function App() {
               <Route path="/history" element={<HistoryPage />} />
               <Route path="/brands" element={<BrandsPage />} />
               <Route path="/brands/:id" element={<BrandTrackerPage />} />
+              <Route path="/merchants" element={<MerchantsPage />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </Layout>
