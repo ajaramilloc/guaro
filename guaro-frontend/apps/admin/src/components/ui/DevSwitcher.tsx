@@ -1,0 +1,56 @@
+import { useState } from "react";
+import { useAuth, devUsers } from "@/store/auth";
+import { Avatar } from "@/components/ui/Avatar";
+import { ChevronDown } from "lucide-react";
+
+export function DevSwitcher() {
+  const { currentUser, setCurrentUser, isDevMode } = useAuth();
+  const [open, setOpen] = useState(false);
+
+  if (!isDevMode) return null;
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="flex items-center gap-1.5 px-2 py-1 text-xs bg-amber-bg
+                   text-amber-text border border-amber-border rounded font-medium w-full"
+      >
+        <span className="w-1.5 h-1.5 rounded-full bg-amber-text animate-pulse" />
+        <span className="truncate">DEV: {currentUser.name.split(" ")[0]}</span>
+        <ChevronDown size={12} className="ml-auto flex-shrink-0" />
+      </button>
+
+      {open && (
+        <div className="absolute bottom-full mb-1 left-0 w-56 card shadow-dropdown z-50 overflow-hidden">
+          <div className="px-3 py-2 border-b border-border">
+            <p className="section-label">Switch user</p>
+          </div>
+          {devUsers.map(({ user, label }) => (
+            <button
+              key={user.id}
+              onClick={() => {
+                setCurrentUser(user);
+                setOpen(false);
+              }}
+              className={`w-full flex items-center gap-2.5 px-3 py-2 text-left
+                         hover:bg-surface-secondary transition-colors
+                         ${currentUser.id === user.id ? "bg-surface-secondary" : ""}`}
+            >
+              <Avatar name={user.name} size="sm" />
+              <div className="min-w-0">
+                <p className="text-xs font-medium text-text-primary truncate">
+                  {user.name}
+                </p>
+                <p className="text-[10px] text-text-tertiary">{label}</p>
+              </div>
+              {currentUser.id === user.id && (
+                <span className="ml-auto w-1.5 h-1.5 rounded-full bg-success-text flex-shrink-0" />
+              )}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}

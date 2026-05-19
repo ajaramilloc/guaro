@@ -1,0 +1,140 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    @apply bg-surface text-text-primary font-sans text-sm;
+  }
+
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-border rounded-full;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-border-strong;
+  }
+}
+
+@layer components {
+  /* Badges */
+  .badge {
+    @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium;
+  }
+  .badge-success {
+    @apply bg-success-bg text-success-text;
+  }
+  .badge-warning {
+    @apply bg-warning-bg text-warning-text;
+  }
+  .badge-danger {
+    @apply bg-danger-bg text-danger-text;
+  }
+  .badge-info {
+    @apply bg-info-bg text-info-text;
+  }
+  .badge-neutral {
+    @apply bg-surface-secondary text-text-secondary;
+  }
+  .badge-purple {
+    @apply bg-purple-bg text-purple-text;
+  }
+  .badge-teal {
+    @apply bg-teal-bg text-teal-text;
+  }
+  .badge-amber {
+    @apply bg-amber-bg text-amber-text;
+  }
+
+  /* Buttons */
+  .btn {
+    @apply inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded transition-colors duration-150 cursor-pointer border border-border;
+  }
+  .btn:disabled {
+    @apply opacity-40 cursor-not-allowed;
+  }
+  .btn-primary {
+    @apply btn bg-accent text-text-inverse border-accent hover:bg-accent-hover;
+  }
+  .btn-secondary {
+    @apply btn bg-surface hover:bg-surface-secondary;
+  }
+  .btn-ghost {
+    @apply btn border-transparent hover:bg-surface-secondary;
+  }
+  .btn-danger {
+    @apply btn border-danger-border text-danger-text hover:bg-danger-bg;
+  }
+  .btn-sm {
+    @apply px-2.5 py-1 text-xs;
+  }
+
+  /* Cards */
+  .card {
+    @apply bg-white border border-border rounded-lg shadow-card;
+  }
+
+  /* Inputs */
+  .input {
+    @apply w-full h-8 px-2.5 text-sm bg-white border border-border rounded
+           focus:outline-none focus:ring-1 focus:ring-accent/30 focus:border-accent
+           transition-colors;
+  }
+  .input-sm {
+    @apply h-7 text-xs;
+  }
+  .select {
+    @apply input cursor-pointer;
+  }
+  .textarea {
+    @apply input h-auto py-2 resize-none;
+  }
+
+  /* Table */
+  .table-base {
+    @apply w-full text-sm border-collapse;
+  }
+  .table-base thead th {
+    @apply text-xs font-medium text-text-secondary px-3 py-2
+           border-b border-border text-left bg-surface-secondary;
+  }
+  .table-base tbody td {
+    @apply px-3 py-2 border-b border-border;
+  }
+  .table-base tbody tr:last-child td {
+    @apply border-b-0;
+  }
+  .table-base tbody tr:hover {
+    @apply bg-surface cursor-pointer;
+  }
+
+  /* Nav items */
+  .nav-item {
+    @apply flex items-center gap-2.5 px-3 py-2 text-sm text-text-secondary
+           rounded cursor-pointer transition-colors duration-150
+           hover:bg-surface-secondary border-l-2 border-transparent;
+  }
+  .nav-item.active {
+    @apply text-text-primary bg-surface-secondary border-l-accent font-medium;
+  }
+
+  /* Section label */
+  .section-label {
+    @apply text-xs font-medium text-text-tertiary uppercase tracking-wide;
+  }
+}
