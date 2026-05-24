@@ -1,9 +1,9 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { mockBrands, mockUsers } from "@guaro/mock-data";
-import { Badge } from "@/components/ui/Badge";
-import { Avatar } from "@/components/ui/Avatar";
+import { useBrands } from "@/hooks/useBrands";
 import { useAuth } from "@/store/auth";
+import { Badge } from "@/components/ui/Badge";
+import { Pagination } from "@/components/ui/Pagination";
 import {
   getCountryFlag,
   PICKING_MODE_LABELS,
@@ -13,56 +13,48 @@ import {
 import { Search, ChevronRight } from "lucide-react";
 import type { Brand } from "@guaro/types";
 
-const bpoUsers = mockUsers.filter((u) => u.role === "BPO");
+const COUNTRIES = ["MX", "CO", "CR", "BR"];
 
 export function BrandsPage() {
   const navigate = useNavigate();
   const { currentUser } = useAuth();
   const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState<"all" | "mine">("mine");
-  const [bpoFilter, setBpoFilter] = useState("");
   const [country, setCountry] = useState("");
+  const [showMine, setShowMine] = useState(false);
+  const [page, setPage] = useState(1);
 
   useEffect(() => {
     const el = document.getElementById("page-title");
     if (el) el.textContent = "Brands";
   }, []);
 
-  const filtered = useMemo(() => {
-    return mockBrands.filter((b) => {
-      const q = search.toLowerCase();
-      if (
-        q &&
-        !b.name.toLowerCase().includes(q) &&
-        !b.merchant?.name.toLowerCase().includes(q)
-      )
-        return false;
-      if (filter === "mine" && b.assignedOpId !== currentUser.bpoProfile?.id)
-        return false;
-      if (bpoFilter && b.assignedOpId !== bpoFilter) return false;
-      if (country && b.country !== country) return false;
-      return true;
-    });
-  }, [search, filter, bpoFilter, country, currentUser]);
+  useEffect(() => {
+    setPage(1);
+  }, [search, country, showMine]);
 
-  const clearFilters = () => {
-    setSearch("");
-    setBpoFilter("");
-    setCountry("");
-  };
+  const bpoProfileId = (currentUser as any)?.bpoProfile?.id;
 
-  const hasFilters = search || bpoFilter || country;
+  const { data: brandsResponse, isLoading } = useBrands({
+    search: search || undefined,
+    country: country || undefined,
+    assignedOpId: showMine ? bpoProfileId : undefined,
+    page,
+    limit: 25,
+  });
+
+  const brands = brandsResponse?.data ?? [];
 
   return (
     <div className="p-5">
-      <div className="mb-4">
-        <h1 className="text-base font-semibold text-text-primary">Brands</h1>
-        <p className="text-xs text-text-tertiary mt-0.5">
-          View and update brand information
-        </p>
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h1 className="text-base font-semibold text-text-primary">Brands</h1>
+          <p className="text-xs text-text-tertiary mt-0.5">
+            {isLoading ? "Loading..." : `${brandsResponse?.total ?? 0} brands`}
+          </p>
+        </div>
       </div>
 
-      {/* Filters */}
       <div className="flex items-center gap-2 mb-4 flex-wrap">
         <div className="relative">
           <Search
@@ -70,147 +62,143 @@ export function BrandsPage() {
             className="absolute left-2.5 top-1/2 -translate-y-1/2 text-text-tertiary"
           />
           <input
-            type="text"
+            className="input pl-7 w-48"
+            placeholder="Search brand or merchant..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search brand..."
-            className="input pl-7 w-44"
           />
         </div>
-
-        {/* My brands / All toggle */}
-        <div className="flex rounded-md border border-border overflow-hidden">
+        <select
+          className="select w-28"
+          value={country}
+          onChange={(e) => setCountry(e.target.value)}
+        >
+          <option value="">All countries</option>
+          {COUNTRIES.map((c) => (
+            <option key={c} value={c}>
+              {getCountryFlag(c)} {c}
+            </option>
+          ))}
+        </select>
+        <button
+          onClick={() => setShowMine((v) => !v)}
+          className={`btn btn-sm ${showMine ? "btn-primary" : "btn-secondary"}`}
+        >
+          {showMine ? "★ My brands" : "☆ My brands"}
+        </button>
+        {(search || country || showMine) && (
           <button
-            onClick={() => setFilter("mine")}
-            className={`px-3 py-1.5 text-xs font-medium transition-colors ${
-              filter === "mine"
-                ? "bg-accent text-white"
-                : "bg-white text-text-secondary hover:bg-surface-secondary"
-            }`}
-          >
-            My brands
-          </button>
-          <button
-            onClick={() => setFilter("all")}
-            className={`px-3 py-1.5 text-xs font-medium transition-colors border-l border-border ${
-              filter === "all"
-                ? "bg-accent text-white"
-                : "bg-white text-text-secondary hover:bg-surface-secondary"
-            }`}
-          >
-            All brands
-          </button>
-        </div>
-
-        {/* Only show BPO and country filters when viewing all */}
-        {filter === "all" && (
-          <>
-            <select
-              value={bpoFilter}
-              onChange={(e) => setBpoFilter(e.target.value)}
-              className="select w-36"
-            >
-              <option value="">All BPOs</option>
-              {bpoUsers.map((u) => (
-                <option key={u.bpoProfile?.id} value={u.bpoProfile?.id}>
-                  {u.name}
-                </option>
-              ))}
-            </select>
-            <select
-              value={country}
-              onChange={(e) => setCountry(e.target.value)}
-              className="select w-28"
-            >
-              <option value="">All countries</option>
-              {["MX", "CO", "CR", "BR"].map((c) => (
-                <option key={c} value={c}>
-                  {getCountryFlag(c)} {c}
-                </option>
-              ))}
-            </select>
-          </>
-        )}
-
-        {hasFilters && filter === "all" && (
-          <button
-            onClick={clearFilters}
+            onClick={() => {
+              setSearch("");
+              setCountry("");
+              setShowMine(false);
+            }}
             className="btn btn-ghost btn-sm text-text-secondary"
           >
             Clear
           </button>
         )}
-
-        <span className="ml-auto text-xs text-text-tertiary">
-          {filtered.length} brand{filtered.length !== 1 ? "s" : ""}
-        </span>
       </div>
 
-      {/* Table */}
-      {filtered.length === 0 ? (
-        <div className="card p-10 text-center text-text-tertiary text-xs">
-          {filter === "mine"
-            ? "No brands assigned to you as OP"
-            : "No brands match your filters"}
-        </div>
-      ) : (
-        <div className="card overflow-hidden">
-          <table className="table-base">
-            <thead>
+      <div className="card overflow-hidden">
+        <table className="table-base">
+          <thead>
+            <tr>
+              <th className="w-[20%]">Brand</th>
+              <th className="w-[14%]">Merchant</th>
+              <th className="w-[8%]">Country</th>
+              <th className="w-[8%]">KA type</th>
+              <th className="w-[14%]">Application</th>
+              <th className="w-[10%]">Picking</th>
+              <th className="w-[10%]">Payment</th>
+              <th className="w-[8%]">Status</th>
+              <th className="w-[4%]"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {isLoading && (
               <tr>
-                <th className="w-[18%]">Brand</th>
-                <th className="w-[13%]">Merchant</th>
-                <th className="w-[8%]">Country</th>
-                <th className="w-[7%]">KA type</th>
-                <th className="w-[10%]">Picking</th>
-                <th className="w-[11%]">Payment</th>
-                <th className="w-[7%]">Menu</th>
-                <th className="w-[12%]">BPO (OP)</th>
-                <th className="w-[4%]"></th>
+                <td
+                  colSpan={9}
+                  className="text-center py-10 text-text-tertiary text-xs"
+                >
+                  Loading brands...
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              {filtered.map((brand) => (
-                <BrandRow
-                  key={brand.id}
-                  brand={brand}
-                  onClick={() => navigate(`/brands/${brand.id}`)}
-                />
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+            )}
+            {!isLoading && brands.length === 0 && (
+              <tr>
+                <td
+                  colSpan={9}
+                  className="text-center py-10 text-text-tertiary text-xs"
+                >
+                  No brands found
+                </td>
+              </tr>
+            )}
+            {brands.map((brand) => (
+              <BrandRow
+                key={brand.id}
+                brand={brand}
+                myBpoId={bpoProfileId}
+                onClick={() => navigate(`/brands/${brand.id}`)}
+              />
+            ))}
+          </tbody>
+        </table>
+
+        {brandsResponse && brandsResponse.pages > 1 && (
+          <Pagination
+            page={brandsResponse.page}
+            pages={brandsResponse.pages}
+            total={brandsResponse.total}
+            limit={brandsResponse.limit}
+            onPageChange={setPage}
+          />
+        )}
+      </div>
     </div>
   );
 }
 
-function BrandRow({ brand, onClick }: { brand: Brand; onClick: () => void }) {
-  const opUser = mockUsers.find((u) => u.bpoProfile?.id === brand.assignedOpId);
+function BrandRow({
+  brand,
+  myBpoId,
+  onClick,
+}: {
+  brand: Brand;
+  myBpoId: string;
+  onClick: () => void;
+}) {
+  const primaryApp = brand.applications?.find((a) => a.isPrimary)?.application;
+  const isMyBrand = brand.assignedOpId === myBpoId;
 
   return (
-    <tr onClick={onClick}>
+    <tr onClick={onClick} className={isMyBrand ? "bg-purple-bg/30" : ""}>
       <td>
         <div className="flex items-center gap-1.5">
           {brand.isSubBrand && (
             <span className="text-text-tertiary text-xs">↳</span>
           )}
-          <span
-            className="font-medium text-text-primary truncate max-w-[120px]"
-            title={brand.name}
-          >
+          <span className="font-medium text-text-primary truncate max-w-[130px]">
             {brand.name}
           </span>
+          {isMyBrand && (
+            <span className="text-[10px] bg-purple-bg text-purple-text rounded px-1.5 py-0.5 flex-shrink-0">
+              yours
+            </span>
+          )}
         </div>
       </td>
-      <td className="text-text-secondary text-xs truncate max-w-[90px]">
-        {brand.merchant?.name}
-      </td>
+      <td className="text-text-secondary text-xs">{brand.merchant?.name}</td>
       <td className="text-text-secondary text-xs">
         {getCountryFlag(brand.country)} {brand.country}
       </td>
       <td>
         <Badge status={brand.kaType} />
+      </td>
+      <td className="text-text-tertiary text-xs font-mono truncate max-w-[100px]">
+        {primaryApp?.appName ?? "—"}
       </td>
       <td className="text-text-secondary text-xs">
         {brand.pickingMode ? PICKING_MODE_LABELS[brand.pickingMode] : "—"}
@@ -218,20 +206,8 @@ function BrandRow({ brand, onClick }: { brand: Brand; onClick: () => void }) {
       <td className="text-text-secondary text-xs">
         {brand.paymentMode ? PAYMENT_MODE_LABELS[brand.paymentMode] : "—"}
       </td>
-      <td className="text-text-secondary text-xs">
-        {brand.menuMethod ? MENU_METHOD_LABELS[brand.menuMethod] : "—"}
-      </td>
       <td>
-        {opUser ? (
-          <div className="flex items-center gap-1.5">
-            <Avatar name={opUser.name} size="xs" />
-            <span className="text-xs text-text-secondary truncate max-w-[70px]">
-              {opUser.name.split(" ")[0]}
-            </span>
-          </div>
-        ) : (
-          <span className="text-text-tertiary text-xs">—</span>
-        )}
+        <Badge status={brand.status} />
       </td>
       <td>
         <ChevronRight size={14} className="text-text-tertiary" />

@@ -1,13 +1,42 @@
 import { useState } from "react";
-import { useAuth, devUsers } from "@/store/auth";
+import { useAuth } from "@/store/auth";
 import { Avatar } from "@/components/ui/Avatar";
 import { ChevronDown } from "lucide-react";
 
+const DEV_USERS = [
+  {
+    email: "carlos.perez@didi-labs.com",
+    name: "Carlos Pérez",
+    label: "BPO · User Growth",
+  },
+  {
+    email: "maria.rodriguez@didi-labs.com",
+    name: "María Rodríguez",
+    label: "BPO · Catalog",
+  },
+  {
+    email: "ana.lopez@didi-labs.com",
+    name: "Ana López",
+    label: "BPO · Catalog",
+  },
+];
+
 export function DevSwitcher() {
-  const { currentUser, setCurrentUser, isDevMode } = useAuth();
+  const { currentUser, login, isDevMode } = useAuth();
   const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   if (!isDevMode) return null;
+
+  async function handleSwitch(email: string) {
+    setLoading(true);
+    try {
+      await login(email);
+      setOpen(false);
+    } finally {
+      setLoading(false);
+    }
+  }
 
   return (
     <div className="relative">
@@ -17,34 +46,37 @@ export function DevSwitcher() {
                    text-amber-text border border-amber-border rounded font-medium w-full"
       >
         <span className="w-1.5 h-1.5 rounded-full bg-amber-text animate-pulse" />
-        <span className="truncate">DEV: {currentUser.name.split(" ")[0]}</span>
+        <span className="truncate">
+          DEV: {currentUser?.name.split(" ")[0] ?? "Not logged in"}
+        </span>
         <ChevronDown size={12} className="ml-auto flex-shrink-0" />
       </button>
 
       {open && (
         <div className="absolute bottom-full mb-1 left-0 w-56 card shadow-dropdown z-50 overflow-hidden">
           <div className="px-3 py-2 border-b border-border">
-            <p className="section-label">Switch user</p>
+            <p className="section-label">Switch BPO user</p>
           </div>
-          {devUsers.map(({ user, label }) => (
+          {DEV_USERS.map((u) => (
             <button
-              key={user.id}
-              onClick={() => {
-                setCurrentUser(user);
-                setOpen(false);
-              }}
+              key={u.email}
+              onClick={() => handleSwitch(u.email)}
+              disabled={loading}
               className={`w-full flex items-center gap-2.5 px-3 py-2 text-left
-                         hover:bg-surface-secondary transition-colors
-                         ${currentUser.id === user.id ? "bg-surface-secondary" : ""}`}
+                         hover:bg-surface-secondary transition-colors disabled:opacity-50 ${
+                           currentUser?.email === u.email
+                             ? "bg-surface-secondary"
+                             : ""
+                         }`}
             >
-              <Avatar name={user.name} size="sm" />
+              <Avatar name={u.name} size="sm" />
               <div className="min-w-0">
                 <p className="text-xs font-medium text-text-primary truncate">
-                  {user.name}
+                  {u.name}
                 </p>
-                <p className="text-[10px] text-text-tertiary">{label}</p>
+                <p className="text-[10px] text-text-tertiary">{u.label}</p>
               </div>
-              {currentUser.id === user.id && (
+              {currentUser?.email === u.email && (
                 <span className="ml-auto w-1.5 h-1.5 rounded-full bg-success-text flex-shrink-0" />
               )}
             </button>

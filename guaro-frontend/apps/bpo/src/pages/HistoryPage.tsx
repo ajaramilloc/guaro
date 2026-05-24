@@ -1,116 +1,155 @@
-import { useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { mockTasks } from "@guaro/mock-data";
-import { Badge } from "@/components/ui/Badge";
-import { formatRelative } from "@guaro/utils";
+import { useTasks } from "@/hooks/useTasks";
 import { useAuth } from "@/store/auth";
+import { Badge } from "@/components/ui/Badge";
+import { Pagination } from "@/components/ui/Pagination";
+import { formatRelative } from "@guaro/utils";
+import { Search, ChevronRight } from "lucide-react";
 
 export function HistoryPage() {
   const navigate = useNavigate();
   const { currentUser } = useAuth();
+  const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
 
   useEffect(() => {
     const el = document.getElementById("page-title");
     if (el) el.textContent = "History";
   }, []);
 
-  const completed = mockTasks.filter(
-    (t) =>
-      t.assignedBpo?.userId === currentUser.id &&
-      ["COMPLETED", "CANCELLED"].includes(t.status),
-  );
+  useEffect(() => {
+    setPage(1);
+  }, [search]);
 
-  const totalCompleted = completed.filter(
-    (t) => t.status === "COMPLETED",
-  ).length;
-  const avgDuration = completed
-    .filter((t) => t.result?.duration_ms)
-    .reduce((acc, t) => acc + (t.result?.duration_ms ?? 0), 0);
-  const avgMs = totalCompleted > 0 ? avgDuration / totalCompleted : 0;
+  const bpoProfileId = (currentUser as any)?.bpoProfile?.id;
+
+  const { data: tasksResponse, isLoading } = useTasks({
+    assignedBpoId: bpoProfileId,
+    status: "COMPLETED",
+    search: search || undefined,
+    page,
+    limit: 20,
+  });
+
+  const tasks = tasksResponse?.data ?? [];
 
   return (
     <div className="p-5">
-      <div className="mb-4">
-        <h1 className="text-base font-semibold text-text-primary">History</h1>
-        <p className="text-xs text-text-tertiary mt-0.5">
-          Your completed and cancelled tasks
-        </p>
-      </div>
-
-      {/* Metrics */}
-      <div className="grid grid-cols-3 gap-2.5 mb-4">
-        <div className="bg-surface-secondary rounded-lg p-3">
-          <p className="text-[11px] text-text-secondary mb-1">Completed</p>
-          <p className="text-xl font-semibold text-text-primary">
-            {totalCompleted}
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h1 className="text-base font-semibold text-text-primary">History</h1>
+          <p className="text-xs text-text-tertiary mt-0.5">
+            {isLoading
+              ? "Loading..."
+              : `${tasksResponse?.total ?? 0} completed tasks`}
           </p>
-          <p className="text-[10px] text-text-tertiary mt-0.5">all time</p>
-        </div>
-        <div className="bg-surface-secondary rounded-lg p-3">
-          <p className="text-[11px] text-text-secondary mb-1">Avg. duration</p>
-          <p className="text-xl font-semibold text-text-primary">
-            {avgMs > 0 ? `${(avgMs / 1000).toFixed(1)}s` : "—"}
-          </p>
-          <p className="text-[10px] text-text-tertiary mt-0.5">per task</p>
-        </div>
-        <div className="bg-surface-secondary rounded-lg p-3">
-          <p className="text-[11px] text-text-secondary mb-1">Cancelled</p>
-          <p className="text-xl font-semibold text-text-primary">
-            {completed.filter((t) => t.status === "CANCELLED").length}
-          </p>
-          <p className="text-[10px] text-text-tertiary mt-0.5">all time</p>
         </div>
       </div>
 
-      {/* Table */}
-      {completed.length === 0 ? (
-        <div className="card p-10 text-center text-text-tertiary text-xs">
-          No completed tasks yet
+      <div className="card overflow-hidden">
+        <div className="flex items-center gap-2 px-4 py-3 border-b border-border">
+          <div className="relative">
+            <Search
+              size={12}
+              className="absolute left-2.5 top-1/2 -translate-y-1/2 text-text-tertiary"
+            />
+            <input
+              className="input input-sm pl-7 w-44"
+              placeholder="Search task or brand..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+          {search && (
+            <button
+              onClick={() => setSearch("")}
+              className="btn btn-ghost btn-sm text-text-secondary"
+            >
+              Clear
+            </button>
+          )}
+          <span className="ml-auto text-xs text-text-tertiary">
+            {tasks.length} on this page
+          </span>
         </div>
-      ) : (
-        <div className="card overflow-hidden">
-          <table className="table-base">
-            <thead>
+
+        <table className="table-base">
+          <thead>
+            <tr>
+              <th className="w-[24%]">Task</th>
+              <th className="w-[20%]">Brand</th>
+              <th className="w-[14%]">Section</th>
+              <th className="w-[10%]">Type</th>
+              <th className="w-[12%]">Status</th>
+              <th className="w-[16%]">Completed</th>
+              <th className="w-[4%]"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {isLoading && (
               <tr>
-                <th className="w-[24%]">Task</th>
-                <th className="w-[20%]">Brand</th>
-                <th className="w-[16%]">Section</th>
-                <th className="w-[10%]">Type</th>
-                <th className="w-[12%]">Status</th>
-                <th className="w-[12%]">Completed</th>
-                <th className="w-[6%]">Duration</th>
+                <td
+                  colSpan={7}
+                  className="text-center py-10 text-text-tertiary text-xs"
+                >
+                  Loading history...
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              {completed.map((t) => (
-                <tr key={t.id} onClick={() => navigate(`/tasks/${t.id}`)}>
-                  <td className="font-medium">{t.taskType?.name}</td>
-                  <td className="text-text-secondary text-xs">
-                    {t.brand?.name}
-                  </td>
-                  <td className="text-text-secondary text-xs">
-                    {t.taskType?.section?.name ?? "—"}
-                  </td>
-                  <td>
-                    {t.taskType && <Badge status={t.taskType.executionMode} />}
-                  </td>
-                  <td>
-                    <Badge status={t.status} />
-                  </td>
-                  <td className="text-text-secondary text-xs">
-                    {t.completedAt ? formatRelative(t.completedAt) : "—"}
-                  </td>
-                  <td className="text-text-secondary text-xs">
-                    {t.result?.duration_ms
-                      ? `${(t.result.duration_ms / 1000).toFixed(1)}s`
-                      : "—"}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+            )}
+            {!isLoading && tasks.length === 0 && (
+              <tr>
+                <td
+                  colSpan={7}
+                  className="text-center py-10 text-text-tertiary text-xs"
+                >
+                  No completed tasks yet
+                </td>
+              </tr>
+            )}
+            {tasks.map((task) => (
+              <tr key={task.id} onClick={() => navigate(`/tasks/${task.id}`)}>
+                <td className="font-medium">{task.taskType?.name ?? "—"}</td>
+                <td>
+                  <p className="text-xs text-text-primary">
+                    {task.brand?.name ?? "—"}
+                  </p>
+                  <p className="text-[10px] text-text-tertiary">
+                    {task.brand?.country}
+                  </p>
+                </td>
+                <td className="text-text-secondary text-xs">
+                  {task.taskType?.section?.name ?? "—"}
+                </td>
+                <td>
+                  {task.taskType && (
+                    <Badge status={task.taskType.executionMode} />
+                  )}
+                </td>
+                <td>
+                  <Badge status={task.status} />
+                </td>
+                <td className="text-text-secondary text-xs">
+                  {task.completedAt ? formatRelative(task.completedAt) : "—"}
+                </td>
+                <td>
+                  <ChevronRight size={13} className="text-text-tertiary" />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+        {tasksResponse && tasksResponse.pages > 1 && (
+          <Pagination
+            page={tasksResponse.page}
+            pages={tasksResponse.pages}
+            total={tasksResponse.total}
+            limit={tasksResponse.limit}
+            onPageChange={setPage}
+          />
+        )}
+      </div>
     </div>
   );
 }

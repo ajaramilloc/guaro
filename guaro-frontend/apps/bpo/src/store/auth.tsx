@@ -1,25 +1,53 @@
-/// <reference types="vite/client" />
-import { useState, createContext, useContext } from "react";
+import { useState, createContext, useContext, useEffect } from "react";
 import type { User } from "@guaro/types";
-import { mockUsers, devUsers as allDevUsers } from "@guaro/mock-data";
-
-// BPO app arranca como Carlos Pérez (BPO)
-const defaultBpoUser = mockUsers[3];
+import { api, setToken, clearToken } from "@/lib/api";
 
 interface AuthContextType {
-  currentUser: User;
-  setCurrentUser: (user: User) => void;
+  currentUser: User | null;
+  isLoading: boolean;
   isDevMode: boolean;
+  login: (email: string) => Promise<void>;
+  logout: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [currentUser, setCurrentUser] = useState<User>(defaultBpoUser);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const isDevMode = import.meta.env.DEV;
 
+  useEffect(() => {
+    const token = localStorage.getItem("guaro_bpo_token");
+    if (token) {
+      api
+        .get<User>("/auth/me")
+        .then((user) => setCurrentUser(user))
+        .catch(() => clearToken())
+        .finally(() => setIsLoading(false));
+    } else {
+      setIsLoading(false);
+    }
+  }, []);
+
+  async function login(email: string) {
+    const { token, user } = await api.post<{ token: string; user: User }>(
+      "/auth/dev-login",
+      { email },
+    );
+    setToken(token);
+    setCurrentUser(user);
+  }
+
+  function logout() {
+    clearToken();
+    setCurrentUser(null);
+  }
+
   return (
-    <AuthContext.Provider value={{ currentUser, setCurrentUser, isDevMode }}>
+    <AuthContext.Provider
+      value={{ currentUser, isLoading, isDevMode, login, logout }}
+    >
       {children}
     </AuthContext.Provider>
   );
@@ -30,5 +58,3 @@ export function useAuth() {
   if (!ctx) throw new Error("useAuth must be used within AuthProvider");
   return ctx;
 }
-
-export { allDevUsers as devUsers };
