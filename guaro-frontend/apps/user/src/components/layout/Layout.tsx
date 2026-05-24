@@ -16,15 +16,13 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex h-screen bg-surface-tertiary overflow-hidden">
-      {/* Sidebar */}
       <aside className="w-48 flex-shrink-0 bg-white border-r border-border flex flex-col">
-        {/* Logo */}
         <div className="px-4 py-4 border-b border-border">
           <div className="flex items-center gap-2">
             <img
               src="/didi-logo.png"
               alt="DiDi"
-              className="w-6 h-6 object-contain rounded"
+              className="w-6 h-6 object-contain rounded bg-accent p-0.5"
             />
             <div>
               <p className="text-sm font-semibold text-text-primary">Guaro</p>
@@ -33,7 +31,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
           </div>
         </div>
 
-        {/* Nav */}
         <nav className="flex-1 p-2 space-y-0.5">
           {navItems.map(({ to, icon: Icon, label, end }) => (
             <NavLink
@@ -50,28 +47,28 @@ export function Layout({ children }: { children: React.ReactNode }) {
           ))}
         </nav>
 
-        {/* User */}
         <div className="p-3 border-t border-border space-y-2">
           <DevSwitcher />
-          <div className="flex items-center gap-2">
-            <Avatar
-              name={currentUser.name}
-              avatarUrl={currentUser.avatarUrl}
-              size="md"
-            />
-            <div className="min-w-0 flex-1">
-              <p className="text-xs font-medium text-text-primary truncate">
-                {currentUser.name}
-              </p>
-              <p className="text-[10px] text-text-tertiary truncate">
-                {TEAM_LABELS[currentUser.team]}
-              </p>
+          {currentUser && (
+            <div className="flex items-center gap-2">
+              <Avatar
+                name={currentUser.name}
+                avatarUrl={currentUser.avatarUrl}
+                size="md"
+              />
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-medium text-text-primary truncate">
+                  {currentUser.name}
+                </p>
+                <p className="text-[10px] text-text-tertiary truncate">
+                  {TEAM_LABELS[currentUser.team]}
+                </p>
+              </div>
             </div>
-          </div>
+          )}
         </div>
       </aside>
 
-      {/* Main */}
       <div className="flex-1 flex flex-col overflow-hidden">
         <header
           className="h-11 bg-white border-b border-border flex items-center

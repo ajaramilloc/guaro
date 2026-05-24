@@ -55,5 +55,10 @@ coverage/
 
 # Package manager lock files (opcional)
 docker-compose.yml
+
+# Seed
+prisma/
+
 # yarn.lock
 pnpm-lock.yaml
+/generated/prisma

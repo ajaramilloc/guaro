@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { mockBrands, mockTasks, mockStores } from "@guaro/mock-data";
+import { useBrand } from "@/hooks/useBrands";
+import { useTasks } from "@/hooks/useTasks";
 import { Badge } from "@/components/ui/Badge";
 import { Avatar } from "@/components/ui/Avatar";
 import {
@@ -11,8 +12,8 @@ import {
   PAYMENT_MODE_LABELS,
   MENU_METHOD_LABELS,
 } from "@guaro/utils";
-import { Plus, Edit, Search } from "lucide-react";
-import type { Store, Task } from "@guaro/types";
+import { Plus, Search, Download } from "lucide-react";
+import type { Brand, Store, Task } from "@guaro/types";
 
 type Tab = "stores" | "tasks" | "notes";
 
@@ -23,12 +24,22 @@ export function BrandTrackerPage() {
   const [storeSearch, setStoreSearch] = useState("");
   const [storeStatus, setStoreStatus] = useState("");
 
-  const brand = mockBrands.find((b) => b.id === id);
+  const { data: brand, isLoading } = useBrand(id ?? "");
+  const { data: brandTasksResponse } = useTasks({ brandId: id, limit: 50 });
+  const brandTasks = brandTasksResponse?.data ?? [];
 
   useEffect(() => {
     const el = document.getElementById("page-title");
     if (el) el.textContent = brand?.name ?? "Brand tracker";
   }, [brand]);
+
+  if (isLoading) {
+    return (
+      <div className="p-5 text-center text-text-tertiary text-xs">
+        Loading...
+      </div>
+    );
+  }
 
   if (!brand) {
     return (
@@ -36,15 +47,22 @@ export function BrandTrackerPage() {
     );
   }
 
-  const brandTasks = mockTasks.filter((t) => t.brandId === id);
-  const brandStores = mockStores.filter((s) => s.brandId === id);
+  // Brand padre con children → tiendas de los sub-brands
+  // Sub-brand → sus propias tiendas
+  // Brand padre sin children → sus propias tiendas
+  const brandStores = brand.isSubBrand
+    ? (brand.stores ?? [])
+    : brand.children && brand.children.length > 0
+      ? brand.children.flatMap((c: any) => c.stores ?? [])
+      : (brand.stores ?? []);
+
   const activeTasks = brandTasks.filter(
     (t) => !["COMPLETED", "CANCELLED"].includes(t.status),
   );
   const blockedTasks = brandTasks.filter((t) => t.status === "BLOCKED");
   const primaryApp = brand.applications?.find((a) => a.isPrimary)?.application;
 
-  const filteredStores = brandStores.filter((s) => {
+  const filteredStores = brandStores.filter((s: any) => {
     if (
       storeSearch &&
       !s.name.toLowerCase().includes(storeSearch.toLowerCase()) &&
@@ -58,7 +76,6 @@ export function BrandTrackerPage() {
 
   return (
     <div className="p-5">
-      {/* Breadcrumb */}
       <div className="flex items-center gap-1.5 text-xs text-text-tertiary mb-4">
         <Link to="/" className="hover:text-text-secondary transition-colors">
           Brands
@@ -78,7 +95,6 @@ export function BrandTrackerPage() {
         <span className="text-text-primary font-medium">{brand.name}</span>
       </div>
 
-      {/* Header card */}
       <div className="card p-4 mb-4">
         <div className="flex items-start justify-between mb-4">
           <div>
@@ -112,19 +128,14 @@ export function BrandTrackerPage() {
               <Plus size={13} />
               New task
             </button>
-            <button className="btn btn-secondary btn-sm">
-              <Edit size={13} />
-              Edit
-            </button>
           </div>
         </div>
 
-        {/* Metrics */}
         <div className="grid grid-cols-4 gap-2.5">
           <MetricCard
             label="Total stores"
             value={brandStores.length}
-            sub={`${brandStores.filter((s) => !s.isActive).length} inactive`}
+            sub={`${brandStores.filter((s: any) => !s.isActive).length} inactive`}
           />
           <MetricCard
             label="Active tasks"
@@ -139,7 +150,7 @@ export function BrandTrackerPage() {
           <MetricCard
             label="Sub-brands"
             value={brand.children?.length ?? 0}
-            sub={brand.children?.map((c) => c.name).join(", ") || "—"}
+            sub={brand.children?.map((c: any) => c.name).join(", ") || "—"}
           />
           <MetricCard
             label="Menu method"
@@ -153,7 +164,6 @@ export function BrandTrackerPage() {
         </div>
       </div>
 
-      {/* Tabs */}
       <div className="card overflow-hidden">
         <div className="flex border-b border-border px-4">
           {(["stores", "tasks", "notes"] as Tab[]).map((t) => (
@@ -179,6 +189,7 @@ export function BrandTrackerPage() {
           {tab === "stores" && (
             <StoresTab
               stores={filteredStores}
+              brand={brand}
               search={storeSearch}
               onSearch={setStoreSearch}
               storeStatus={storeStatus}
@@ -219,17 +230,69 @@ function MetricCard({
 
 function StoresTab({
   stores,
+  brand,
   search,
   onSearch,
   storeStatus,
   onStatusChange,
 }: {
-  stores: Store[];
+  stores: any[];
+  brand: Brand;
   search: string;
   onSearch: (v: string) => void;
   storeStatus: string;
   onStatusChange: (v: string) => void;
 }) {
+  function exportCSV() {
+    const headers = [
+      "Store name",
+      "Shop ID",
+      "App Shop ID",
+      "City",
+      "Address",
+      "Status",
+      "Active",
+      "Mon",
+      "Tue",
+      "Wed",
+      "Thu",
+      "Fri",
+      "Sat",
+      "Sun",
+    ];
+
+    const rows = stores.map((s) => [
+      s.name,
+      s.externalId ?? "",
+      s.externalId ?? "",
+      s.city ?? "",
+      s.address ?? "",
+      s.status ?? "",
+      s.isActive ? "Yes" : "No",
+      s.hoursMonday ?? "",
+      s.hoursTuesday ?? "",
+      s.hoursWednesday ?? "",
+      s.hoursThursday ?? "",
+      s.hoursFriday ?? "",
+      s.hoursSaturday ?? "",
+      s.hoursSunday ?? "",
+    ]);
+
+    const csv = [headers, ...rows]
+      .map((row) =>
+        row.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(","),
+      )
+      .join("\n");
+
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${brand.name.replace(/\s+/g, "_")}_stores.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   return (
     <div>
       <div className="flex gap-2 mb-3">
@@ -254,45 +317,106 @@ function StoresTab({
           <option value="active">Active</option>
           <option value="inactive">Inactive</option>
         </select>
+        <button
+          className="btn btn-secondary btn-sm ml-auto"
+          onClick={exportCSV}
+        >
+          <Download size={12} />
+          Export CSV
+        </button>
       </div>
-      <table className="table-base">
-        <thead>
-          <tr>
-            <th>Store name</th>
-            <th>Store ID</th>
-            <th>City</th>
-            <th>Status</th>
-            <th>Updated</th>
-          </tr>
-        </thead>
-        <tbody>
-          {stores.length === 0 && (
+
+      {!brand.isSubBrand && brand.children && brand.children.length > 0 && (
+        <div className="mb-3 p-2.5 bg-info-bg border border-info-border rounded-md">
+          <p className="text-[11px] text-info-text">
+            Showing stores from {brand.children.length} sub-brand
+            {brand.children.length !== 1 ? "s" : ""}. Stores are added directly
+            to sub-brands.
+          </p>
+        </div>
+      )}
+
+      <div className="overflow-x-auto">
+        <table className="table-base min-w-[1000px]">
+          <thead>
             <tr>
-              <td
-                colSpan={5}
-                className="text-center py-8 text-text-tertiary text-xs"
-              >
-                No stores found
-              </td>
+              <th className="w-[15%]">Store name</th>
+              <th className="w-[9%]">Shop ID</th>
+              <th className="w-[9%]">App Shop ID</th>
+              <th className="w-[8%]">City</th>
+              <th className="w-[7%]">Status</th>
+              <th className="w-[7%]">Mon</th>
+              <th className="w-[7%]">Tue</th>
+              <th className="w-[7%]">Wed</th>
+              <th className="w-[7%]">Thu</th>
+              <th className="w-[7%]">Fri</th>
+              <th className="w-[7%]">Sat</th>
+              <th className="w-[7%]">Sun</th>
             </tr>
-          )}
-          {stores.map((s) => (
-            <tr key={s.id}>
-              <td className="font-medium">{s.name}</td>
-              <td className="text-text-tertiary text-xs font-mono">
-                {s.externalId ?? "—"}
-              </td>
-              <td className="text-text-secondary">{s.city ?? "—"}</td>
-              <td>
-                <Badge status={s.isActive ? "ACTIVE" : "INACTIVE"} />
-              </td>
-              <td className="text-text-secondary text-xs">
-                {formatRelative(s.updatedAt)}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {stores.length === 0 && (
+              <tr>
+                <td
+                  colSpan={12}
+                  className="text-center py-8 text-text-tertiary text-xs"
+                >
+                  {brand.isSubBrand
+                    ? "No stores yet"
+                    : "No stores found across sub-brands"}
+                </td>
+              </tr>
+            )}
+            {stores.map((s) => (
+              <tr key={s.id}>
+                <td>
+                  <div>
+                    <p className="font-medium text-xs">{s.name}</p>
+                    {s.address && (
+                      <p className="text-[10px] text-text-tertiary truncate max-w-[110px]">
+                        {s.address}
+                      </p>
+                    )}
+                  </div>
+                </td>
+                <td className="text-text-tertiary text-xs font-mono">
+                  {s.externalId ?? "—"}
+                </td>
+                <td className="text-text-tertiary text-xs font-mono">
+                  {s.externalId ?? "—"}
+                </td>
+                <td className="text-text-secondary text-xs">{s.city ?? "—"}</td>
+                <td>
+                  <Badge
+                    status={s.status ?? (s.isActive ? "ACTIVE" : "INACTIVE")}
+                  />
+                </td>
+                <td className="text-text-tertiary text-[10px]">
+                  {s.hoursMonday ?? "—"}
+                </td>
+                <td className="text-text-tertiary text-[10px]">
+                  {s.hoursTuesday ?? "—"}
+                </td>
+                <td className="text-text-tertiary text-[10px]">
+                  {s.hoursWednesday ?? "—"}
+                </td>
+                <td className="text-text-tertiary text-[10px]">
+                  {s.hoursThursday ?? "—"}
+                </td>
+                <td className="text-text-tertiary text-[10px]">
+                  {s.hoursFriday ?? "—"}
+                </td>
+                <td className="text-text-tertiary text-[10px]">
+                  {s.hoursSaturday ?? "—"}
+                </td>
+                <td className="text-text-tertiary text-[10px]">
+                  {s.hoursSunday ?? "—"}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
@@ -397,15 +521,7 @@ function TasksTab({ tasks }: { tasks: Task[] }) {
   );
 }
 
-function NotesTab({
-  brand,
-}: {
-  brand: ReturnType<
-    (typeof mockBrands)[0]["merchant"] extends infer T ? () => T : never
-  > extends never
-    ? (typeof mockBrands)[0]
-    : (typeof mockBrands)[0];
-}) {
+function NotesTab({ brand }: { brand: Brand }) {
   return (
     <div className="space-y-4">
       <div>
@@ -413,7 +529,7 @@ function NotesTab({
           Internal notes
         </label>
         <textarea
-          className="input textarea w-full h-20"
+          className="input w-full h-20 resize-none"
           defaultValue={brand.notes ?? ""}
           placeholder="Add notes, context or internal documentation for this brand..."
         />

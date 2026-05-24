@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
-import { mockTasks } from "@guaro/mock-data";
+import { useTask, useAddComment, useCancelTask } from "@/hooks/useTasks";
 import { Badge } from "@/components/ui/Badge";
 import { Avatar } from "@/components/ui/Avatar";
 import { formatDateTime, formatRelative } from "@guaro/utils";
@@ -14,6 +14,7 @@ import {
   FileText,
   GitBranch,
 } from "lucide-react";
+import type { Task } from "@guaro/types";
 
 type Tab = "workflow" | "log" | "history" | "comments";
 
@@ -23,7 +24,9 @@ export function TaskDetailPage() {
   const [tab, setTab] = useState<Tab>("workflow");
   const [comment, setComment] = useState("");
 
-  const task = mockTasks.find((t) => t.id === id);
+  const { data: task, isLoading } = useTask(id ?? "");
+  const addComment = useAddComment();
+  const cancelTask = useCancelTask();
 
   useEffect(() => {
     const el = document.getElementById("page-title");
@@ -33,6 +36,14 @@ export function TaskDetailPage() {
         : "Task detail";
   }, [task]);
 
+  if (isLoading) {
+    return (
+      <div className="p-5 text-center text-text-tertiary text-xs">
+        Loading...
+      </div>
+    );
+  }
+
   if (!task) {
     return (
       <div className="p-5 text-center text-text-tertiary">Task not found</div>
@@ -41,11 +52,11 @@ export function TaskDetailPage() {
 
   const isBlocked = task.status === "BLOCKED";
   const isAuto = task.taskType?.executionMode === "AUTOMATED";
+  const isFinished = ["COMPLETED", "CANCELLED"].includes(task.status);
   const bpoUser = task.assignedBpo?.user;
 
   return (
     <div className="p-5">
-      {/* Breadcrumb */}
       <div className="flex items-center gap-1.5 text-xs text-text-tertiary mb-4">
         <Link
           to="/tasks"
@@ -59,7 +70,6 @@ export function TaskDetailPage() {
         </span>
       </div>
 
-      {/* Blocked banner */}
       {isBlocked && (
         <div
           className="flex items-start gap-3 bg-danger-bg border border-danger-border
@@ -78,7 +88,6 @@ export function TaskDetailPage() {
         </div>
       )}
 
-      {/* Header */}
       <div className="card p-4 mb-4">
         <div className="flex items-start justify-between mb-4">
           <div>
@@ -117,7 +126,7 @@ export function TaskDetailPage() {
                     <span>{bpoUser.name}</span>
                   </div>
                 ) : (
-                  <span className="text-text-tertiary">Auto (no BPO)</span>
+                  <span className="text-text-tertiary">Auto</span>
                 )
               }
             />
@@ -164,7 +173,6 @@ export function TaskDetailPage() {
         )}
       </div>
 
-      {/* Tabs */}
       <div className="card overflow-hidden mb-4">
         <div className="flex border-b border-border px-4">
           {(
@@ -183,11 +191,11 @@ export function TaskDetailPage() {
               key={tId}
               onClick={() => setTab(tId)}
               className={`flex items-center gap-1.5 px-3 py-2.5 text-xs font-medium
-                            border-b-2 transition-colors -mb-px ${
-                              tab === tId
-                                ? "border-accent text-text-primary"
-                                : "border-transparent text-text-secondary hover:text-text-primary"
-                            }`}
+                           border-b-2 transition-colors -mb-px ${
+                             tab === tId
+                               ? "border-accent text-text-primary"
+                               : "border-transparent text-text-secondary hover:text-text-primary"
+                           }`}
             >
               <Icon size={12} />
               {label}
@@ -204,12 +212,18 @@ export function TaskDetailPage() {
               task={task}
               comment={comment}
               onCommentChange={setComment}
+              onSubmit={() => {
+                addComment.mutate(
+                  { taskId: task.id, body: comment },
+                  { onSuccess: () => setComment("") },
+                );
+              }}
+              isPending={addComment.isPending}
             />
           )}
         </div>
       </div>
 
-      {/* Actions */}
       <div className="flex justify-between">
         <button
           className="btn btn-secondary btn-sm"
@@ -224,10 +238,16 @@ export function TaskDetailPage() {
               Upload new file & retry
             </button>
           )}
-          <button className="btn btn-danger btn-sm">
-            <X size={13} />
-            Cancel task
-          </button>
+          {!isFinished && (
+            <button
+              className="btn btn-danger btn-sm"
+              disabled={cancelTask.isPending}
+              onClick={() => cancelTask.mutate(task.id)}
+            >
+              <X size={13} />
+              {cancelTask.isPending ? "Cancelling..." : "Cancel task"}
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -243,7 +263,7 @@ function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
   );
 }
 
-function WorkflowTab({ task }: { task: (typeof mockTasks)[0] }) {
+function WorkflowTab({ task }: { task: Task }) {
   const isAuto = task.taskType?.executionMode !== "MANUAL";
 
   const nodes = isAuto
@@ -252,7 +272,7 @@ function WorkflowTab({ task }: { task: (typeof mockTasks)[0] }) {
         {
           label: "Validate rows",
           status: "done",
-          sub: task.status === "BLOCKED" ? "47 errors found" : "All valid",
+          sub: task.status === "BLOCKED" ? "Errors found" : "All valid",
         },
         {
           label: "Upload via API",
@@ -318,17 +338,16 @@ function WorkflowTab({ task }: { task: (typeof mockTasks)[0] }) {
   );
 }
 
-function LogTab({ task }: { task: (typeof mockTasks)[0] }) {
+function LogTab({ task }: { task: Task }) {
+  const result = task.result as Record<string, number> | null;
+
   const logLines =
     task.status === "BLOCKED"
       ? [
           { type: "info", text: "Starting worker..." },
           { type: "success", text: `File downloaded: ${task.inputValue}` },
           { type: "info", text: "Validating schema..." },
-          {
-            type: "error",
-            text: "ERROR: 47 rows missing columns: sku, precio_promo",
-          },
+          { type: "error", text: "ERROR: rows missing required columns" },
           { type: "error", text: "Worker paused — task marked as BLOCKED" },
         ]
       : task.status === "COMPLETED"
@@ -337,7 +356,7 @@ function LogTab({ task }: { task: (typeof mockTasks)[0] }) {
             { type: "success", text: `File downloaded: ${task.inputValue}` },
             {
               type: "success",
-              text: `Validation passed: ${task.result?.rows_processed ?? 0} rows`,
+              text: `Validation passed: ${result?.rows_processed ?? 0} rows`,
             },
             { type: "success", text: "Upload complete" },
             { type: "success", text: "Webhook sent · Task COMPLETED" },
@@ -362,24 +381,24 @@ function LogTab({ task }: { task: (typeof mockTasks)[0] }) {
           </div>
         ))}
       </div>
-      {task.result && (
+      {result && (
         <div className="mt-3 grid grid-cols-3 gap-2">
           <div className="bg-surface-secondary rounded p-2 text-center">
             <p className="text-xs text-text-tertiary">Rows processed</p>
             <p className="text-sm font-semibold text-success-text">
-              {task.result.rows_processed}
+              {result.rows_processed}
             </p>
           </div>
           <div className="bg-surface-secondary rounded p-2 text-center">
             <p className="text-xs text-text-tertiary">Rows failed</p>
             <p className="text-sm font-semibold text-danger-text">
-              {task.result.rows_failed}
+              {result.rows_failed}
             </p>
           </div>
           <div className="bg-surface-secondary rounded p-2 text-center">
             <p className="text-xs text-text-tertiary">Duration</p>
             <p className="text-sm font-semibold text-text-primary">
-              {((task.result.duration_ms ?? 0) / 1000).toFixed(1)}s
+              {((result.duration_ms ?? 0) / 1000).toFixed(1)}s
             </p>
           </div>
         </div>
@@ -388,7 +407,7 @@ function LogTab({ task }: { task: (typeof mockTasks)[0] }) {
   );
 }
 
-function HistoryTab({ task }: { task: (typeof mockTasks)[0] }) {
+function HistoryTab({ task }: { task: Task }) {
   const events = [
     task.blockedAt && {
       time: task.blockedAt,
@@ -396,10 +415,16 @@ function HistoryTab({ task }: { task: (typeof mockTasks)[0] }) {
       desc: task.blockReason ?? "",
       color: "bg-danger-text",
     },
+    task.completedAt && {
+      time: task.completedAt,
+      label: "Task completed",
+      desc: "Completed successfully",
+      color: "bg-success-text",
+    },
     task.startedAt && {
       time: task.startedAt,
       label: "Worker started",
-      desc: `Input: ${task.inputValue}`,
+      desc: `Input: ${task.inputValue ?? "N/A"}`,
       color: "bg-info-text",
     },
     task.assignedAt && {
@@ -448,10 +473,14 @@ function CommentsTab({
   task,
   comment,
   onCommentChange,
+  onSubmit,
+  isPending,
 }: {
-  task: (typeof mockTasks)[0];
+  task: Task;
   comment: string;
   onCommentChange: (v: string) => void;
+  onSubmit: () => void;
+  isPending: boolean;
 }) {
   return (
     <div>
@@ -491,20 +520,21 @@ function CommentsTab({
           className="w-6 h-6 rounded-full bg-info-bg flex items-center justify-center
                         text-[9px] font-medium text-info-text flex-shrink-0 mt-0.5"
         >
-          JR
+          You
         </div>
         <div className="flex-1">
           <textarea
-            className="input textarea w-full h-14"
+            className="input w-full h-14 resize-none"
             placeholder="Add a comment..."
             value={comment}
             onChange={(e) => onCommentChange(e.target.value)}
           />
           <button
             className="btn btn-primary btn-sm mt-1.5"
-            disabled={!comment.trim()}
+            disabled={!comment.trim() || isPending}
+            onClick={onSubmit}
           >
-            Send
+            {isPending ? "Sending..." : "Send"}
           </button>
         </div>
       </div>

@@ -1,13 +1,10 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams, Link } from "react-router-dom";
-import {
-  mockModules,
-  mockSections,
-  mockTaskTypes,
-  mockBrands,
-} from "@guaro/mock-data";
+import { useModules } from "@/hooks/useModules";
+import { useBrands } from "@/hooks/useBrands";
+import { useCreateTask } from "@/hooks/useTasks";
 import { Badge } from "@/components/ui/Badge";
-import { Check, ChevronRight, Upload, Link as LinkIcon } from "lucide-react";
+import { Check, ChevronRight, Link as LinkIcon } from "lucide-react";
 import type { Module, Section, TaskType, Brand } from "@guaro/types";
 
 type Step = 1 | 2 | 3 | 4;
@@ -19,12 +16,14 @@ interface FormState {
   brand: Brand | null;
   storesScope: "all" | "select";
   priority: "normal" | "high" | "urgent";
-  inputMode: "sheet" | "file";
   sheetUrl: string;
   notes: string;
 }
 
 export function CreateTaskPage() {
+  const { data: modulesData = [] } = useModules();
+  const { data: brandsData = [] } = useBrands();
+  const createTask = useCreateTask();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [step, setStep] = useState<Step>(1);
@@ -36,7 +35,6 @@ export function CreateTaskPage() {
     brand: null,
     storesScope: "all",
     priority: "normal",
-    inputMode: "sheet",
     sheetUrl: "",
     notes: "",
   });
@@ -47,10 +45,10 @@ export function CreateTaskPage() {
 
     const brandId = searchParams.get("brandId");
     if (brandId) {
-      const brand = mockBrands.find((b) => b.id === brandId);
+      const brand = brandsData.find((b) => b.id === brandId);
       if (brand) setForm((f) => ({ ...f, brand }));
     }
-  }, [searchParams]);
+  }, [searchParams, brandsData]);
 
   const steps = [
     { n: 1, label: "Task type" },
@@ -67,11 +65,11 @@ export function CreateTaskPage() {
   const canProceed: Record<number, boolean> = {
     1: !!form.taskType,
     2: !!form.brand,
-    3: !needsFile || (form.inputMode === "sheet" ? !!form.sheetUrl : true),
+    3: !needsFile || !!form.sheetUrl,
     4: true,
   };
 
-  const filteredBrands = mockBrands.filter(
+  const filteredBrands = brandsData.filter(
     (b) =>
       b.name.toLowerCase().includes(brandSearch.toLowerCase()) ||
       b.merchant?.name.toLowerCase().includes(brandSearch.toLowerCase()),
@@ -86,13 +84,28 @@ export function CreateTaskPage() {
     else navigate("/tasks");
   }
 
-  function submit() {
-    navigate("/tasks");
+  async function submit() {
+    if (!form.taskType || !form.brand) return;
+    try {
+      await createTask.mutateAsync({
+        taskTypeId: form.taskType.id,
+        brandId: form.brand.id,
+        inputType: needsFile ? "SHEET_LINK" : "NONE",
+        inputValue: needsFile ? form.sheetUrl : undefined,
+        formData: {
+          storesScope: form.storesScope,
+          notes: form.notes,
+        },
+        priority: form.priority,
+      });
+      navigate("/tasks");
+    } catch (err) {
+      console.error("Failed to create task", err);
+    }
   }
 
   return (
     <div className="p-5 max-w-2xl">
-      {/* Breadcrumb */}
       <div className="flex items-center gap-1.5 text-xs text-text-tertiary mb-5">
         <Link
           to="/tasks"
@@ -104,20 +117,19 @@ export function CreateTaskPage() {
         <span className="text-text-primary font-medium">Create task</span>
       </div>
 
-      {/* Stepper */}
       <div className="flex items-center gap-0 mb-6">
         {steps.map(({ n, label }, i) => (
           <div key={n} className="flex items-center">
             <div className="flex items-center gap-2">
               <div
                 className={`w-6 h-6 rounded-full flex items-center justify-center
-                             text-[11px] font-medium flex-shrink-0 transition-colors ${
-                               n < step
-                                 ? "bg-success-text text-white"
-                                 : n === step
-                                   ? "bg-accent text-white"
-                                   : "bg-surface-secondary text-text-tertiary border border-border"
-                             }`}
+                               text-[11px] font-medium flex-shrink-0 transition-colors ${
+                                 n < step
+                                   ? "bg-success-text text-white"
+                                   : n === step
+                                     ? "bg-accent text-white"
+                                     : "bg-surface-secondary text-text-tertiary border border-border"
+                               }`}
               >
                 {n < step ? <Check size={11} /> : n}
               </div>
@@ -142,7 +154,6 @@ export function CreateTaskPage() {
         ))}
       </div>
 
-      {/* Card */}
       <div className="card p-5">
         {/* STEP 1 — Task type */}
         {step === 1 && (
@@ -154,21 +165,23 @@ export function CreateTaskPage() {
               Choose a module and task type
             </p>
 
+            {modulesData.length === 0 && (
+              <p className="text-xs text-text-tertiary text-center py-6">
+                Loading modules...
+              </p>
+            )}
+
             <div className="space-y-4">
-              {mockModules.map((mod) => {
-                const modSections = mockSections.filter(
-                  (s) => s.moduleId === mod.id,
-                );
+              {modulesData.map((mod) => {
+                const modSections = (mod as any).sections ?? [];
                 return (
                   <div key={mod.id}>
                     <p className="text-xs font-semibold text-text-secondary mb-2 uppercase tracking-wide">
                       {mod.name}
                     </p>
                     <div className="space-y-2">
-                      {modSections.map((sec) => {
-                        const secTasks = mockTaskTypes.filter(
-                          (t) => t.sectionId === sec.id,
-                        );
+                      {modSections.map((sec: any) => {
+                        const secTasks = sec.taskTypes ?? [];
                         return (
                           <div
                             key={sec.id}
@@ -180,7 +193,7 @@ export function CreateTaskPage() {
                               </p>
                             </div>
                             <div className="divide-y divide-border">
-                              {secTasks.map((tt) => (
+                              {secTasks.map((tt: any) => (
                                 <button
                                   key={tt.id}
                                   onClick={() => {
@@ -254,6 +267,11 @@ export function CreateTaskPage() {
               onChange={(e) => setBrandSearch(e.target.value)}
             />
             <div className="border border-border rounded-lg divide-y divide-border max-h-72 overflow-y-auto">
+              {filteredBrands.length === 0 && (
+                <p className="text-xs text-text-tertiary text-center py-6">
+                  No brands found
+                </p>
+              )}
               {filteredBrands.map((b) => (
                 <button
                   key={b.id}
@@ -346,69 +364,26 @@ export function CreateTaskPage() {
             {needsFile && (
               <div className="mb-3">
                 <label className="text-xs font-medium text-text-secondary block mb-1.5">
-                  Data file <span className="text-danger-text">*</span>
+                  Google Sheets link <span className="text-danger-text">*</span>
                 </label>
-                <div className="flex gap-2 mb-2">
-                  <button
-                    onClick={() =>
-                      setForm((f) => ({ ...f, inputMode: "sheet" }))
+                <div className="flex items-center gap-2 input">
+                  <LinkIcon
+                    size={13}
+                    className="text-text-tertiary flex-shrink-0"
+                  />
+                  <input
+                    type="text"
+                    className="flex-1 bg-transparent outline-none text-xs"
+                    placeholder="https://docs.google.com/spreadsheets/..."
+                    value={form.sheetUrl}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, sheetUrl: e.target.value }))
                     }
-                    className={`btn btn-sm gap-1.5 ${
-                      form.inputMode === "sheet"
-                        ? "btn-primary"
-                        : "btn-secondary"
-                    }`}
-                  >
-                    <LinkIcon size={12} />
-                    Google Sheets link
-                  </button>
-                  <button
-                    onClick={() =>
-                      setForm((f) => ({ ...f, inputMode: "file" }))
-                    }
-                    className={`btn btn-sm gap-1.5 ${
-                      form.inputMode === "file"
-                        ? "btn-primary"
-                        : "btn-secondary"
-                    }`}
-                  >
-                    <Upload size={12} />
-                    Upload file
-                  </button>
+                  />
                 </div>
-                {form.inputMode === "sheet" ? (
-                  <div>
-                    <input
-                      type="text"
-                      className="input w-full"
-                      placeholder="https://docs.google.com/spreadsheets/..."
-                      value={form.sheetUrl}
-                      onChange={(e) =>
-                        setForm((f) => ({ ...f, sheetUrl: e.target.value }))
-                      }
-                    />
-                    <p className="text-[11px] text-text-tertiary mt-1">
-                      Make sure the sheet is accessible with the service
-                      account.
-                    </p>
-                  </div>
-                ) : (
-                  <div
-                    className="border border-dashed border-border-strong rounded-md p-5
-                                text-center cursor-pointer hover:bg-surface-secondary transition-colors"
-                  >
-                    <Upload
-                      size={18}
-                      className="mx-auto text-text-tertiary mb-2"
-                    />
-                    <p className="text-xs text-text-secondary">
-                      Click to upload or drag & drop
-                    </p>
-                    <p className="text-[11px] text-text-tertiary mt-0.5">
-                      .xlsx or .csv · max 10 MB
-                    </p>
-                  </div>
-                )}
+                <p className="text-[11px] text-text-tertiary mt-1">
+                  Make sure the sheet is shared with the service account.
+                </p>
               </div>
             )}
 
@@ -417,7 +392,7 @@ export function CreateTaskPage() {
                 Notes
               </label>
               <textarea
-                className="input textarea w-full h-16"
+                className="input w-full h-16 resize-none"
                 placeholder="Optional context for the BPO..."
                 value={form.notes}
                 onChange={(e) =>
@@ -453,6 +428,8 @@ export function CreateTaskPage() {
                 }
               />
               <ReviewRow label="Brand" value={form.brand?.name} />
+              <ReviewRow label="Merchant" value={form.brand?.merchant?.name} />
+              <ReviewRow label="Country" value={form.brand?.country} />
               <ReviewRow
                 label="Stores scope"
                 value={
@@ -461,10 +438,10 @@ export function CreateTaskPage() {
               />
               {needsFile && (
                 <ReviewRow
-                  label="Data file"
+                  label="Sheet URL"
                   value={
-                    <span className="text-info-text font-mono text-[11px]">
-                      {form.sheetUrl || "File uploaded"}
+                    <span className="text-info-text font-mono text-[11px] truncate max-w-[200px] block">
+                      {form.sheetUrl}
                     </span>
                   }
                 />
@@ -479,14 +456,8 @@ export function CreateTaskPage() {
               />
             </div>
 
-            <div
-              className="flex items-start gap-2.5 bg-info-bg border border-info-border
-                          rounded-md px-3 py-2.5"
-            >
-              <div
-                className="w-4 h-4 rounded-full bg-info-text flex items-center
-                            justify-center flex-shrink-0 mt-0.5"
-              >
+            <div className="flex items-start gap-2.5 bg-info-bg border border-info-border rounded-md px-3 py-2.5">
+              <div className="w-4 h-4 rounded-full bg-info-text flex items-center justify-center flex-shrink-0 mt-0.5">
                 <span className="text-white text-[10px] font-bold">i</span>
               </div>
               <p className="text-xs text-info-text">
@@ -509,10 +480,14 @@ export function CreateTaskPage() {
           {step > 1 && (
             <button
               className="btn btn-primary btn-sm"
-              disabled={!canProceed[step]}
+              disabled={!canProceed[step] || createTask.isPending}
               onClick={step === 4 ? submit : next}
             >
-              {step === 4 ? "Create task ✓" : "Continue →"}
+              {step === 4
+                ? createTask.isPending
+                  ? "Creating..."
+                  : "Create task ✓"
+                : "Continue →"}
             </button>
           )}
         </div>

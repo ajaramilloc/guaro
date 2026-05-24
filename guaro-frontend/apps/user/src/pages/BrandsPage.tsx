@@ -1,8 +1,9 @@
 import { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { mockBrands, mockUsers } from "@guaro/mock-data";
+import { useBrands } from "@/hooks/useBrands";
 import { Badge } from "@/components/ui/Badge";
 import { Avatar } from "@/components/ui/Avatar";
+import { Pagination } from "@/components/ui/Pagination";
 import {
   getCountryFlag,
   PICKING_MODE_LABELS,
@@ -32,11 +33,9 @@ const PAYMENT_MODES: PaymentMode[] = [
 ];
 const MENU_METHODS: MenuMethod[] = ["API", "SFTP", "BAPP"];
 
-// BPOs disponibles para filtrar
-const bpoUsers = mockUsers.filter((u) => u.role === "BPO");
-
 export function BrandsPage() {
   const navigate = useNavigate();
+  const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [country, setCountry] = useState("");
   const [kaType, setKaType] = useState("");
@@ -51,23 +50,9 @@ export function BrandsPage() {
     if (el) el.textContent = "Brands dashboard";
   }, []);
 
-  const filtered = useMemo(() => {
-    return mockBrands.filter((b) => {
-      const q = search.toLowerCase();
-      if (
-        q &&
-        !b.name.toLowerCase().includes(q) &&
-        !b.merchant?.name.toLowerCase().includes(q)
-      )
-        return false;
-      if (country && b.country !== country) return false;
-      if (kaType && b.kaType !== kaType) return false;
-      if (bpoFilter && b.assignedOpId !== bpoFilter) return false;
-      if (pickingMode && b.pickingMode !== pickingMode) return false;
-      if (paymentMode && b.paymentMode !== paymentMode) return false;
-      if (menuMethod && b.menuMethod !== menuMethod) return false;
-      return true;
-    });
+  // Reset page when filters change
+  useEffect(() => {
+    setPage(1);
   }, [
     search,
     country,
@@ -77,6 +62,41 @@ export function BrandsPage() {
     paymentMode,
     menuMethod,
   ]);
+
+  const { data: brandsResponse, isLoading } = useBrands({
+    country: country || undefined,
+    kaType: kaType || undefined,
+    search: search || undefined,
+    assignedOpId: bpoFilter || undefined,
+    page,
+    limit: 25,
+  });
+
+  const brands = brandsResponse?.data ?? [];
+
+  const filtered = useMemo(() => {
+    return brands.filter((b) => {
+      if (pickingMode && b.pickingMode !== pickingMode) return false;
+      if (paymentMode && b.paymentMode !== paymentMode) return false;
+      if (menuMethod && b.menuMethod !== menuMethod) return false;
+      return true;
+    });
+  }, [brands, pickingMode, paymentMode, menuMethod]);
+
+  const bpoUsers = useMemo(() => {
+    const seen = new Set<string>();
+    const list: { id: string; name: string }[] = [];
+    for (const b of brands) {
+      if (b.assignedOp?.id && !seen.has(b.assignedOp.id)) {
+        seen.add(b.assignedOp.id);
+        list.push({
+          id: b.assignedOp.id,
+          name: b.assignedOp.user?.name ?? b.assignedOp.id,
+        });
+      }
+    }
+    return list;
+  }, [brands]);
 
   const clearFilters = () => {
     setSearch("");
@@ -100,15 +120,15 @@ export function BrandsPage() {
 
   return (
     <div className="p-5">
-      {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div>
           <h1 className="text-base font-semibold text-text-primary">
             Brands dashboard
           </h1>
           <p className="text-xs text-text-tertiary mt-0.5">
-            {mockBrands.length} brands ·{" "}
-            {new Set(mockBrands.map((b) => b.merchantId)).size} merchants
+            {isLoading
+              ? "Loading..."
+              : `${brandsResponse?.total ?? 0} brands total`}
           </p>
         </div>
         <button className="btn btn-secondary btn-sm">
@@ -117,7 +137,6 @@ export function BrandsPage() {
         </button>
       </div>
 
-      {/* Filters row 1 */}
       <div className="flex items-center gap-2 mb-2 flex-wrap">
         <div className="relative">
           <Search
@@ -163,24 +182,20 @@ export function BrandsPage() {
         >
           <option value="">All BPOs</option>
           {bpoUsers.map((u) => (
-            <option key={u.bpoProfile?.id} value={u.bpoProfile?.id}>
+            <option key={u.id} value={u.id}>
               {u.name}
             </option>
           ))}
         </select>
         <button
           onClick={() => setShowExtraFilters((v) => !v)}
-          className={`btn btn-sm ${
-            showExtraFilters || hasExtraFilters
-              ? "btn-primary"
-              : "btn-secondary"
-          }`}
+          className={`btn btn-sm ${showExtraFilters || hasExtraFilters ? "btn-primary" : "btn-secondary"}`}
         >
           {hasExtraFilters ? "● " : ""}Filters+
         </button>
         <div className="ml-auto flex items-center gap-2">
           <span className="text-xs text-text-tertiary bg-surface-secondary border border-border px-2 py-1 rounded">
-            {filtered.length} brand{filtered.length !== 1 ? "s" : ""}
+            {filtered.length} shown
           </span>
           {hasFilters && (
             <button
@@ -193,12 +208,8 @@ export function BrandsPage() {
         </div>
       </div>
 
-      {/* Filters row 2 — extra */}
       {showExtraFilters && (
-        <div
-          className="flex items-center gap-2 mb-3 flex-wrap p-3
-                        bg-surface-secondary rounded-lg border border-border"
-        >
+        <div className="flex items-center gap-2 mb-3 flex-wrap p-3 bg-surface-secondary rounded-lg border border-border">
           <span className="text-xs text-text-tertiary font-medium">
             Config filters:
           </span>
@@ -241,7 +252,12 @@ export function BrandsPage() {
         </div>
       )}
 
-      {/* Table */}
+      {isLoading && (
+        <div className="card p-10 text-center text-text-tertiary text-xs">
+          Loading brands...
+        </div>
+      )}
+
       <div className="card overflow-hidden">
         <table className="table-base">
           <thead>
@@ -259,7 +275,7 @@ export function BrandsPage() {
             </tr>
           </thead>
           <tbody>
-            {filtered.length === 0 && (
+            {!isLoading && filtered.length === 0 && (
               <tr>
                 <td
                   colSpan={10}
@@ -278,6 +294,15 @@ export function BrandsPage() {
             ))}
           </tbody>
         </table>
+        {brandsResponse && brandsResponse.pages > 1 && (
+          <Pagination
+            page={brandsResponse.page}
+            pages={brandsResponse.pages}
+            total={brandsResponse.total}
+            limit={brandsResponse.limit}
+            onPageChange={setPage}
+          />
+        )}
       </div>
     </div>
   );
@@ -285,7 +310,7 @@ export function BrandsPage() {
 
 function BrandRow({ brand, onClick }: { brand: Brand; onClick: () => void }) {
   const primaryApp = brand.applications?.find((a) => a.isPrimary)?.application;
-  const opUser = mockUsers.find((u) => u.bpoProfile?.id === brand.assignedOpId);
+  const opUser = brand.assignedOp?.user;
 
   return (
     <tr onClick={onClick}>
